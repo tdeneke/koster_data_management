@@ -1,0 +1,5 @@
+-e git+https://github.com/zooniverse/panoptes-python-client.git#egg=panoptes_client
+ffmpeg==1.4
+numpy==1.16.4
+opencv_python==4.1.1.26
+libmagic==1.0
