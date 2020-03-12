@@ -1,0 +1,7 @@
+Question,Multiple,Required,Answers,Include,Exclude
+How many individuals do you see in the video?,N,Y,1;2;3;4+,,Human objects;Nothing here;Fish (any species);Crustacean (any species);Sponge (any species);Coral (any species);Echinoderm (any species);Bivalves (any species);Gastropods (any species)
+When is the first time the species appears fully in the video?,N,Y,0s;1s;2s;3s;4s;5s;6s;7s;8s;9s,,Human objects;Nothing here;Fish (any species);Crustacean (any species);Sponge (any species);Coral (any species);Echinoderm (any species);Bivalves (any species);Gastropods (any species)
+What type of object do you see in the video?,Y,Y,Fishing material;Litter,Human objects,
+When is the first time the object appears in the video?,N,Y,0s;1s;2s;3s;4s;5s;6s;7s;8s;9s,Human objects,
+How many individuals do you see in the video?,N,Y,1;2;3;4+,Fish (any species);Crustacean (any species);Sponge (any species);Coral (any species);Echinoderm (any species);Bivalves (any species);Gastropods (any species),
+When is the first time the animals appear fully in the video?,N,Y,0s;1s;2s;3s;4s;5s;6s;7s;8s;9s,Fish (any species);Crustacean (any species);Sponge (any species);Coral (any species);Echinoderm (any species);Bivalves (any species);Gastropods (any species),
