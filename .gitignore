@@ -1,0 +1,13 @@
+# Database files
+*.db
+
+# Video extensions
+*.mp4
+*.mov
+*.mpeg
+
+# System extensions
+.DS_Store
+
+# Folder containing video clips
+zooniverse_scripts/clips/
