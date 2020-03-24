@@ -423,6 +423,7 @@ def main():
         help="the absolute path to the database file",
         default=r"koster_lab.db", required=True
     )
+    parser.add_argument("--question_path", "-q", help="Path to questions file", type=str, required=True)
     args = parser.parse_args()
 
     project = auth_session(args.user, args.password)
@@ -435,7 +436,7 @@ def main():
     print(slice_exports(all_class, w1_class))
 
     # The questions and choices files used to set up the survey project:
-    question_file = "../questions_9Mar2020.csv"
+    question_file = args.question_path
 
     # Output file names (whatever you want them to be)
     out_w1_class = "../flatten_class_w1.csv"  # a sort deletes this file after use

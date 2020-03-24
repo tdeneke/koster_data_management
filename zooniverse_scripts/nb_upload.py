@@ -67,7 +67,7 @@ def main():
         "--location", "-l", help="Location to store clips", type=str, required=True
     )
     parser.add_argument(
-        "--video_path", "-v", help="Location to store clips", type=str, required=True
+        "--video_path", "-v", help="Video to clip", type=str, required=True
     )
     parser.add_argument(
         "--n_clips", "-n", help="Number of clips to sample", type=str, required=True
