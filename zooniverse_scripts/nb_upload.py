@@ -77,7 +77,7 @@ def main():
         "--db_path",
         type=str,
         help="the absolute path to the database file",
-        default=r"koster_lab.db",
+        default=r"koster_lab.db", required=True
     )
     args = parser.parse_args()
 

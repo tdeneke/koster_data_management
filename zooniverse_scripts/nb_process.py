@@ -414,14 +414,14 @@ def main():
 
     "Handles argument parsing and launches the correct function."
     parser = argparse.ArgumentParser()
-    parser.add_argument("--user", "-u", help="Zooniverse username", type=str)
-    parser.add_argument("--password", "-p", help="Zooniverse password", type=str)
+    parser.add_argument("--user", "-u", help="Zooniverse username", type=str, required=True)
+    parser.add_argument("--password", "-p", help="Zooniverse password", type=str, required=True)
     parser.add_argument(
         "-db",
         "--db_path",
         type=str,
         help="the absolute path to the database file",
-        default=r"koster_lab.db",
+        default=r"koster_lab.db", required=True
     )
     args = parser.parse_args()
 
