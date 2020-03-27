@@ -53,22 +53,9 @@ FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
 CREATE TABLE agg_classifications
 (
 subject_id varchar(255) PRIMARY KEY,
-classifications int,
-choice varchar(255),
-choice_v_f int NULL,
-how_many int NULL,
-how_many_vf int NULL,
-Resting int NULL,
-Standing int NULL,
-Moving int NULL,
-Eating int NULL,
-Interacting int NULL,
-Young int NULL,
-No_Young int NULL,
-Horns int NULL,
-No_Horns int NULL,
-Dont_care_yes int NULL,
-Dont_care_no int NULL,
+agg_ann_clip_choice varchar(255),
+agg_ann_clip_how_many int,
+agg_ann_clip_first_time int NULL,
 FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
 );
 

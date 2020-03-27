@@ -6,6 +6,7 @@
 import os, csv, json, sys
 import operator, argparse
 import requests
+import pandas as pd
 from datetime import datetime
 from db_setup import *
 from panoptes_client import Project, Panoptes
@@ -414,16 +415,23 @@ def main():
 
     "Handles argument parsing and launches the correct function."
     parser = argparse.ArgumentParser()
-    parser.add_argument("--user", "-u", help="Zooniverse username", type=str, required=True)
-    parser.add_argument("--password", "-p", help="Zooniverse password", type=str, required=True)
+    parser.add_argument(
+        "--user", "-u", help="Zooniverse username", type=str, required=True
+    )
+    parser.add_argument(
+        "--password", "-p", help="Zooniverse password", type=str, required=True
+    )
     parser.add_argument(
         "-db",
         "--db_path",
         type=str,
         help="the absolute path to the database file",
-        default=r"koster_lab.db", required=True
+        default=r"koster_lab.db",
+        required=True,
     )
-    parser.add_argument("--question_path", "-q", help="Path to questions file", type=str, required=True)
+    parser.add_argument(
+        "--question_path", "-q", help="Path to questions file", type=str, required=True
+    )
     args = parser.parse_args()
 
     project = auth_session(args.user, args.password)
@@ -439,10 +447,8 @@ def main():
     question_file = args.question_path
 
     # Output file names (whatever you want them to be)
-    out_w1_class = "../flatten_class_w1.csv"  # a sort deletes this file after use
-    sorted_w1_class = "../flatten_class_w1_sorted.csv"
-    aggregate_w1_class = "../flatten_class_w1_aggregate.csv"
-    columns_w1_class = "../flatten_class_w1_filtered.csv"
+    out_w1_class = "../flatten_class_w1.csv"
+    agg_w1_class = "../flatten_class_w1_aggregate.csv"
 
     with open(out_w1_class, "w", newline="") as ou_file:
         fieldnames = [
@@ -474,17 +480,46 @@ def main():
 
         #  open the zooniverse data file using dictreader, and load the more complex json strings
         #  as python objects using json.loads()
+    with open(out_w1_class, "w", newline="") as ou_file:
+        fieldnames = [
+            "classification_id",
+            "subject_ids",
+            "created_at",
+            "user_name",
+            "user_ip",
+            "single_ann_clip_choice",
+            "single_ann_clip_how_many",
+            "single_ann_clip_first_time",
+            "single_ann_clip_trash",
+        ]
+        writer = csv.DictWriter(ou_file, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # this area for initializing counters, status lists and loading pick lists into memory:
+        rc2 = 0
+        rc1 = 0
+        wc1 = 0
+
+        #  create a dictionary with the same question and response labels as the project builder.
+        questions = ["INDIVIDUAL", "FIRSTTIME", "TYPEOFOBJECT"]
+        responses = [
+            ["1", "2", "3", "4"],
+            ["0S", "1S", "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S"],
+            ["FISHING", "MATERIALLITTER"],
+        ]
+
+        #  open the zooniverse data file using dictreader, and load the more complex json strings
+        #  as python objects using json.loads()
         with open(w1_class) as class_file:
             classifications = csv.DictReader(class_file)
             for row in classifications:
-                ## Add to classifications db
                 rc2 += 1
                 # useful for debugging - set the number of record to process at a low number ~1000
                 if (
                     rc2 == 150000
                 ):  # one more than the last line of zooniverse file to read if not EOF
                     break
-                if include(row):
+                if include(row) is True:
                     rc1 += 1
                     annotations = json.loads(row["annotations"])
 
@@ -497,37 +532,28 @@ def main():
                         # blocks, put them here before the survey task, so the writer block will have the
                         # all the data it needs prior to the end of the survey task block.
 
-                        # Add to annotations db
-
                         # The survey task block:
                         try:
                             #  main survey task recognized by project specific task number - in this case 'T0'
                             #  you need this to match your own project - it may be different!
                             if task["task"] == "T4":
                                 try:
-                                    m_s = 1
-                                    b = 1
                                     for species in task["value"]:
-                                        m_s = (
-                                            m_s * b
-                                        )  # set up test for multiple species in one classification
-                                        b = b * 0
                                         choice = species["choice"]
                                         answer_vector = empty(questions, responses)
 
                                         for q in range(0, len(questions)):
                                             try:
-                                                answer[q] = species["answers"][
-                                                    questions[q]
+                                                answer[q] = [
+                                                    val
+                                                    for key, val in species[
+                                                        "answers"
+                                                    ].items()
+                                                    if questions[q] in key
                                                 ]
-                                                # prepare answer_vectors that will make aggregation easier
-                                                # This section is optional but produces a data structure that
-                                                # will be needed for a future aggregate_survey script.
-                                                for r in range(0, len(responses[q])):
-                                                    if responses[q][r] == answer[q]:
-                                                        answer_vector[q][r] = 1
                                             except KeyError:
                                                 continue
+
                                         # This sets up the writer to match the field names above and the
                                         # variable names of their values. Note we write one line per
                                         # subject_choices:
@@ -541,190 +567,75 @@ def main():
                                                 "created_at": row["created_at"],
                                                 "user_name": row["user_name"],
                                                 "user_ip": row["user_ip"],
-                                                "choice": choice,
-                                                "how_many": answer[0],
-                                                "first_time": answer[1],
-                                                "subject_choices": row["subject_ids"]
-                                                + choice,
-                                                "all_choices": json.dumps(
-                                                    [m_s, answer_vector]
+                                                "single_ann_clip_choice": choice,
+                                                "single_ann_clip_how_many": "".join(
+                                                    map(str, answer[0])
+                                                ),
+                                                "single_ann_clip_first_time": "".join(
+                                                    map(str, answer[1])
+                                                ).replace("S", ""),
+                                                "single_ann_clip_trash": "".join(
+                                                    map(str, answer[2])
                                                 ),
                                             }
                                         )
-                                        # Add to value_wf1 db
-
                                 except KeyError:
                                     continue
                         except KeyError:
                             continue
 
-                    # This area prints some basic process info and status
-        print(
-            rc2,
-            "lines read and inspected",
-            rc1,
-            "records processed and",
-            wc1,
-            "lines written",
-        )
+    # This area prints some basic process info and status
+    print(
+        rc2,
+        "lines read and inspected.",
+        rc1,
+        "records processed and",
+        wc1,
+        "lines written.",
+    )
 
-        print(sort_file(out_w1_class, sorted_w1_class, 8), "lines sorted and written")
+    # Aggregate the classifications
 
-    with open(aggregate_w1_class, "w", newline="") as ag_file:
-        fieldnames = ["subject_ids", "classifications", "choice", "aggregated_vector"]
-        writer = csv.DictWriter(ag_file, fieldnames=fieldnames)
-        writer.writeheader()
-        #  build a look-up table of classification totals by subject - this is needed for the calculation of
-        #  vote_fraction.
-        with open(sorted_w1_class) as so_file:
-            sorted_file = csv.DictReader(so_file)
-            subject = ""
-            class_totals = {}
-            class_tot = 0
-            rc3 = 0
-            for row1 in sorted_file:
-                rc3 += 1
-                new_subject = row1["subject_ids"]
-                if new_subject != subject:
-                    if rc3 != 1:
-                        class_totals[subject] = [class_tot, rc3]
-                    rc3 = 0
-                    subject = new_subject
-                    class_tot = json.loads(row1["all_choices"])[0]
-                else:
-                    subject = new_subject
-                    class_tot += json.loads(row1["all_choices"])[0]
-            class_totals[subject] = [class_tot, rc3]
+    # Load the csv as df to handle with pandas
+    w1_data = pd.read_csv(out_w1_class)
 
-        # The old fashion aggregation routine with the vote fraction and file write built in
-        with open(sorted_w1_class) as so_file:
-            sorted_file = csv.DictReader(so_file)
-            subject = ""
-            subject_choices = ""
-            rc4 = 0
-            rc5 = 0
-            aggregate = empty(questions, responses)
-            class_count = 1
-            choice_now = ""
-            for row2 in sorted_file:
-                rc4 += 1
-                new_subject = row2["subject_ids"]
-                new_subject_choices = row2["subject_choices"]
-                all_choices = json.loads(row2["all_choices"])
-                if new_subject_choices != subject_choices:
-                    if rc4 != 1:  # don't want to output the empty initial values
-                        rc5 += 1
-                        try:
-                            aggregate = cal_fraction(
-                                questions, responses, aggregate, class_totals[subject]
-                            )
-                        except KeyError:
-                            class_totals[subject] = {0: 0}
-                        new_row = {
-                            "subject_ids": subject,
-                            "classifications": class_totals[subject][0],
-                            "choice": choice_now,
-                            "aggregated_vector": json.dumps(aggregate),
-                        }
-                        writer.writerow(new_row)
-                    subject = new_subject
-                    subject_choices = new_subject_choices
-                    choice_now = row2["choice"]
-                    all_choices = json.loads(row2["all_choices"])
-                    class_count = all_choices[0]
-                    for q3 in range(0, len(questions)):
-                        for r3 in range(0, len(responses[q3])):
-                            aggregate[q3][r3] = all_choices[1][q3][r3]
-                else:
-                    for que in range(0, len(questions)):
-                        for res in range(0, len(responses[que])):
-                            aggregate[que][res] += all_choices[1][que][res]
-                    class_count += all_choices[0]
-                    subject = new_subject
-                    subject_choices = new_subject_choices
+    # Calculate the number of different classifications per subject
+    w1_data["class_subject"] = w1_data.groupby("subject_ids")[
+        "classification_id"
+    ].transform("nunique")
 
-            # catch the last aggregate after the end of the file is reached
-            rc5 += 1
-            aggregate = cal_fraction(
-                questions, responses, aggregate, class_totals[subject]
-            )
-            new_row = {
-                "subject_ids": subject,
-                "classifications": class_totals[subject][0],
-                "choice": choice_now,
-                "aggregated_vector": json.dumps(aggregate),
-            }
+    # Select subjects with at least 4 different classifications
+    w1_data = w1_data[w1_data.class_subject > 3]
 
-            writer.writerow(new_row)
-        print(rc4, "lines aggregated into", rc5, "subject-choice categories")
+    # Calculate the proportion of users that agreed on their classifications
+    w1_data["class_n"] = w1_data.groupby(["subject_ids", "single_ann_clip_choice"])[
+        "classification_id"
+    ].transform("count")
+    w1_data["class_prop"] = w1_data.class_n / w1_data.class_subject
 
-    column_headers = [
-        "how_many",
-        "how_many_vf",
-        "Resting",
-        "Standing",
-        "Moving",
-        "Eating",
-        "Interacting",
-        "Young",
-        "No_Young",
-        "Horns",
-        "No_Horns",
-        "Don't_care_yes",
-        "Don't_care_no",
-    ]
+    # Select subjects where at least 80% of the users agree in their classification
+    w1_data = w1_data[w1_data.class_prop > 0.8]
 
-    with open(columns_w1_class, "w", newline="") as co_file:
-        columns = ["subject_ids", "classifications", "choice", "choice v_f"]
-        columns.extend(column_headers)
-        fieldnames = columns
-        writer = csv.DictWriter(co_file, fieldnames=fieldnames)
-        writer.writeheader()
-        with open(aggregate_w1_class) as agg_file:
-            aggregated_file = csv.DictReader(agg_file)
-            out_list = ["" for rc in range(0, len(column_headers))]
-            subject = ""
-            choice_vector = []
-            class_count = 0
-            rc6 = 0
-            # collect all the subject data together - again an old fashioned aggregation routine
-            # with the filter applied to the pooled subject data.
-            for row3 in aggregated_file:
-                rc6 += 1
-                vector = json.loads(row3["aggregated_vector"])
-                new_subject = row3["subject_ids"]
-                if new_subject != subject:
-                    if rc6 != 1:  # don't want to look at the empty initial values
-                        new_row = apply_tests(
-                            subject, class_totals, choice_vector, column_headers
-                        )
-                        writer.writerow(new_row)
-                    subject = new_subject
-                    total_v_f = 0
-                    for r10 in range(0, len(responses[0])):
-                        total_v_f += vector[0][r10]
-                    choice_vector = [(row3["choice"], total_v_f, vector)]
-                else:
-                    total_v_f = 0
-                    for r10 in range(0, len(responses[0])):
-                        total_v_f += vector[0][r10]
-                    choice_vector.append((row3["choice"], total_v_f, vector))
-                    subject = new_subject
+    # extract the median of the second where the animal/object is and the number of animals
+    w1_data = w1_data.groupby(["subject_ids", "single_ann_clip_choice"], as_index=False)
+    w1_data = pd.DataFrame(
+        w1_data[["single_ann_clip_how_many", "single_ann_clip_first_time"]].median()
+    )
 
-            # catch the last aggregate after the end of the file is reached
-            row_out = apply_tests(subject, class_totals, choice_vector, column_headers)
-            writer.writerow(row_out)
-            # Add to agg_classifications db
-            conn = create_connection(args.db_path)
+    # save csv file of the classified subjects
+    w1_data.to_csv(agg_w1_class, index=False, header=True)
 
-            try:
-                insert_many(conn, [tuple(row_out.values())], "agg_classifications", 17)
-            except sqlite3.Error as e:
-                print(e)
+    # Add to agg_classifications db
+    conn = create_connection(args.db_path)
 
-            conn.commit()
+    try:
+        insert_many(conn, [tuple(i) for i in w1_data.values], "agg_classifications", 4)
+    except sqlite3.Error as e:
+        print(e)
 
-    print(rc6, "subject-choices filtered")
+    conn.commit()
+
+    print("Aggregation complete")
 
 
 if __name__ == "__main__":
