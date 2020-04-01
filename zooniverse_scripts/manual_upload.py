@@ -8,23 +8,7 @@ import requests, argparse
 from datetime import datetime
 from panoptes_client import Project, Panoptes
 from db_setup import *
-
-
-class AuthenticationError(Exception):
-    pass
-
-
-def auth_session(username, password):
-    # Connect to Zooniverse with your username and password
-    auth = Panoptes.connect(username=username, password=password)
-
-    if not auth.logged_in:
-        raise AuthenticationError("Your credentials are invalid. Please try again.")
-
-    # Specify the project number of the koster lab
-    project = Project(9747)
-
-    return project
+from zooniverse_setup import *
 
 
 def download_file(url, dstn):
@@ -171,14 +155,19 @@ def slice_exports(db_path, dstn_sb, out_location_sb, first_date, last_date):
 def main():
     "Handles argument parsing and launches the correct function."
     parser = argparse.ArgumentParser()
-    parser.add_argument("--user", "-u", help="Zooniverse username", type=str, required=True)
-    parser.add_argument("--password", "-p", help="Zooniverse password", type=str, required=True)
+    parser.add_argument(
+        "--user", "-u", help="Zooniverse username", type=str, required=True
+    )
+    parser.add_argument(
+        "--password", "-p", help="Zooniverse password", type=str, required=True
+    )
     parser.add_argument(
         "-db",
         "--db_path",
         type=str,
         help="the absolute path to the database file",
-        default=r"koster_lab.db", required=True
+        default=r"koster_lab.db",
+        required=True,
     )
 
     args = parser.parse_args()
@@ -194,7 +183,9 @@ def main():
     out_location_subj = "../manually_uploaded_subjects.csv"
 
     print(download_exports(project, dstn_subj))
-    print(slice_exports(args.db_path, dstn_subj, out_location_subj, first_date, last_date))
+    print(
+        slice_exports(args.db_path, dstn_subj, out_location_subj, first_date, last_date)
+    )
 
 
 if __name__ == "__main__":

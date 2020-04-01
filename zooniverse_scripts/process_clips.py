@@ -9,29 +9,11 @@ import requests
 import pandas as pd
 from datetime import datetime
 from db_setup import *
-from panoptes_client import Project, Panoptes
+from zooniverse_setup import *
 
 # Specify the workflow of interest and its version
 workflow_1 = 11767
 workflow_1_version = 227
-
-
-class AuthenticationError(Exception):
-    pass
-
-
-def auth_session(username, password):
-    # Connect to Zooniverse with your username and password
-    auth = Panoptes.connect(username=username, password=password)
-
-    if not auth.logged_in:
-        raise AuthenticationError("Your credentials are invalid. Please try again.")
-
-    # Specify the project number of the koster lab
-    project = Project(9747)
-
-    return project
-
 
 def download_file(url, dstn):
     request = requests.get(url, stream=True)

@@ -9,6 +9,7 @@ import argparse
 import sqlite3
 import numpy as np
 from db_setup import *
+from zooniverse_setup import *
 from datetime import date
 from panoptes_client import (
     SubjectSet,
@@ -16,24 +17,6 @@ from panoptes_client import (
     Project,
     Panoptes,
 )  # needed to upload clips to Zooniverse
-
-
-class AuthenticationError(Exception):
-    pass
-
-
-def auth_session(username, password):
-    # Connect to Zooniverse with your username and password
-    auth = Panoptes.connect(username=username, password=password)
-
-    if not auth.logged_in:
-        raise AuthenticationError("Your credentials are invalid. Please try again.")
-
-    # Specify the project number of the koster lab
-    project = Project(9747)
-
-    return project
-
 
 def get_length(filename):
     result = subprocess.run(
@@ -77,7 +60,8 @@ def main():
         "--db_path",
         type=str,
         help="the absolute path to the database file",
-        default=r"koster_lab.db", required=True
+        default=r"koster_lab.db",
+        required=True,
     )
     args = parser.parse_args()
 
