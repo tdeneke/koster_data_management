@@ -1,85 +1,8 @@
-sql = """CREATE TABLE workflows
+sql = """CREATE TABLE movies
 (
-workflow_id varchar(255) PRIMARY KEY,
-display_name text,
-version integer,
-retired_set_member_subjects_count integer NULL
-);
-
-CREATE TABLE subjects
-(
-subject_id varchar(255) PRIMARY KEY,
-workflow_id varchar(255) NULL,
-subject_set_id varchar(255),
-classifications_count integer NULL,
-retired_at datetime NULL,
-retirement_criteria text NULL,
-zoo_upload_date datetime,
-clip_filename integer,
-FOREIGN KEY (workflow_id) REFERENCES workflows (workflow_id)
-);
-
-CREATE TABLE user_info
-(
-user_id varchar(255) PRIMARY KEY,
-user_name text
-);
-
-CREATE TABLE classifications
-(
-classification_id int PRIMARY KEY,
-user_id varchar(255),
-workflow_id varchar(255),
-created_at datetime,
-started_at datetime,
-finished_at datetime,
-subject_id varchar(255),
-FOREIGN KEY (user_id) REFERENCES user_info (user_id)
-);
-
-CREATE TABLE annotations
-(
-task_id integer PRIMARY KEY,
-task_label varchar(255),
-classification_id varchar(255),
-created_at datetime,
-started_at datetime,
-finished_at datetime,
-subject_id varchar(255),
-FOREIGN KEY (classification_id) REFERENCES classifications (classification_id),
-FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
-);
-
-CREATE TABLE agg_classifications
-(
-subject_id varchar(255) PRIMARY KEY,
-agg_ann_clip_choice varchar(255),
-agg_ann_clip_how_many int,
-agg_ann_clip_first_time int NULL,
-FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
-);
-
-/*CREATE TABLE agg_annotations
-(
-subject_ids varchar(255) PRIMARY KEY,
-labels varchar(255),
-positions varchar(255),
-);
-
-CREATE TABLE value_wf1
-(
-choice_id integer PRIMARY KEY,
-choice varchar(255),
-individuals integer,
-first_seen integer,
-task_id integer,
-FOREIGN KEY (task_id) REFERENCES tasks (task_id)
-);*/
-
-CREATE TABLE movies
-(
-filename text PRIMARY KEY,
-movie_date datetime NULL,
+id integer PRIMARY KEY,
+filename text NULL,
+date datetime NULL,
 duration datetime NULL,
 author text NULL,
 location text NULL,
@@ -88,50 +11,73 @@ organisation text NULL
 
 CREATE TABLE clips
 (
-filename text PRIMARY KEY,
-panoptes_filename text NULL,
+id integer PRIMARY KEY,
+filename text NULL,
 start_time datetime,
 end_time datetime,
-clip_date datetime NULL,
-movie_filename text,
-FOREIGN KEY (movie_filename) REFERENCES movies (filename)
+clipped_date datetime NULL,
+movie_id integer,
+FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 
+CREATE TABLE frames
+(
+id integer PRIMARY KEY,
+frame_number integer,
+movie_time datetime,
+movie_id integer,
+FOREIGN KEY (movie_id) REFERENCES movies (id)
+);
+
+CREATE TABLE subjects
+(
+id integer PRIMARY KEY,
+workflow_id varchar(255) NULL,
+subject_set_id varchar(255),
+classifications_count integer NULL,
+retired_at datetime NULL,
+retirement_criteria text NULL,
+zoo_upload_date datetime,
+clip_id integer,
+frame_id integer,
+FOREIGN KEY (clip_id) REFERENCES clips (id),
+FOREIGN KEY (frame_id) REFERENCES frames (id)
+);
+
+CREATE TABLE species
+(
+id varchar PRIMARY KEY,
+label text
+);
+
+CREATE TABLE agg_annotations_clip
+(
+id integer PRIMARY KEY,
+species_id varchar(255),
+how_many integer,
+first_seen integer,
+clip_id integer,
+FOREIGN KEY (clip_id) REFERENCES clips (id),
+FOREIGN KEY (species_id) REFERENCES species (id)
+);
+
+CREATE TABLE agg_annotations_frame
+(
+id integer PRIMARY KEY,
+species_id varchar(255),
+x_position integer,
+frame_id integer,
+FOREIGN KEY (frame_id) REFERENCES frames (id)
+);*/
 
 
 """
 
-# CREATE TABLE IF NOT EXISTS value_wf2
-# (
-#  integer PRIMARY KEY,
-# task_label varchar(255),
-# classification_id varchar(255),
-# created_at datetime,
-# started_at datetime,
-# finished_at datetime,
-# subject_id varchar(255),
-# FOREIGN KEY (classification_id) REFERENCES classifications (classification_id)
-# FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
-# );
-
 # CREATE TABLE IF NOT EXISTS sites
 # (
-# classification_id int,
-# user_id varchar(255),
-# workflow_id varchar(255),
-# created_at datetime,
-# started_at datetime,
-# finished_at datetime,
-# subject_id varchar(255),
+# id integer PRIMARY KEY,
+# name text,
+# coord varchar(255),
+# protected varchar(255)
 # );
 
-# CREATE TABLE IF NOT EXISTS frames
-# (
-# classification_id int,
-# user_id varchar(255),
-# workflow_id varchar(255),
-# created_at datetime,
-# started_at datetime,
-# finished_at datetime,
-# subject_id varchar(255),
-# );
