@@ -2,7 +2,7 @@ sql = """CREATE TABLE movies
 (
 id integer PRIMARY KEY,
 filename text NULL,
-date datetime NULL,
+created_on datetime NULL,
 duration datetime NULL,
 author text NULL,
 location text NULL,
@@ -68,7 +68,7 @@ species_id varchar(255),
 x_position integer,
 frame_id integer,
 FOREIGN KEY (frame_id) REFERENCES frames (id)
-);*/
+);
 
 
 """

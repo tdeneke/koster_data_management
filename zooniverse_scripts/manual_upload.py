@@ -11,147 +11,6 @@ from db_setup import *
 from zooniverse_setup import *
 
 
-def download_file(url, dstn):
-    request = requests.get(url, stream=True)
-    with open(dstn, "wb") as dstn_f:
-        for chunk in request.iter_content(chunk_size=4096):
-            dstn_f.write(chunk)
-    return dstn
-
-
-def download_exports(projt, dstn_sb):
-
-    try:
-        meta_subj = projt.describe_export("subjects")
-        generated = meta_subj["media"][0]["updated_at"][0:19]
-        tdelta = (
-            datetime.now() - datetime.strptime(generated, "%Y-%m-%dT%H:%M:%S")
-        ).total_seconds()
-        age = 300 + int(tdelta / 60)
-        print(str(datetime.now())[0:19] + "  Subject export", age, " hours old")
-        url_subj = meta_subj["media"][0]["src"]
-        file_subj = download_file(url_subj, dstn_sb)
-        print(str(datetime.now())[0:19] + "  " + file_subj + " downloaded")
-    except:
-        print(str(datetime.now())[0:19] + "  Subjects download did not complete")
-        return False
-    return True
-
-
-def slice_exports(db_path, dstn_sb, out_location_sb, first_date, last_date):
-    k = 0
-    m = 0
-    with open(out_location_sb, "w", newline="") as file:
-        fieldnames = ["subject_id", "subject_set_id", "filename", "created_at"]
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-
-        #  open the zooniverse data file using dictreader
-        with open(dstn_sb) as f:
-            r = csv.DictReader(f)
-            for row in r:
-                k += 1
-                if last_date >= row["created_at"] >= first_date:
-                    m += 1
-                    # This set up the writer to match the field names above and the variable names of their values:
-                    # note we flatten relevant information from the metadata
-                    writer.writerow(
-                        {
-                            "subject_id": row["subject_id"],
-                            "subject_set_id": row["subject_set_id"],
-                            "filename": json.loads(row["metadata"])["filename"],
-                            "created_at": row["created_at"],
-                        }
-                    )
-                    # Connect to koster_db
-                    conn = create_connection(db_path)
-
-                    # Add to movies table
-                    try:
-                        cr = json.loads(row["metadata"])
-                        file_name, ext = os.path.splitext(cr["filename"])
-                        insert_many(
-                            conn,
-                            [
-                                (
-                                    file_name.split("_")[0] + ext,
-                                    None,
-                                    None,
-                                    None,
-                                    None,
-                                    None,
-                                )
-                            ],
-                            "movies",
-                            6,
-                        )
-                    except:
-                        pass
-                    # Add to clips table
-                    try:
-                        cr = json.loads(row["metadata"])
-                        lr = json.loads(row["locations"])
-                        insert_many(
-                            conn,
-                            [
-                                (
-                                    cr["filename"],
-                                    lr["0"],
-                                    cr["#start_time"] if "#start_time" in cr else None,
-                                    cr["#end_time"] if "#end_time" in cr else None,
-                                    None,
-                                    file_name.split("_")[0] + ext,
-                                )
-                            ],
-                            "clips",
-                            6,
-                        )
-                    except:
-                        pass
-
-                    # Add to workflow table
-                    try:
-                        insert_many(
-                            conn, [(row["workflow_id"], "test", 1, 20)], "workflows", 4
-                        )
-                    except:
-                        pass
-                    # Add to subjects table
-                    try:
-                        insert_many(
-                            conn,
-                            [
-                                (
-                                    row["subject_id"],
-                                    row["workflow_id"],
-                                    row["subject_set_id"],
-                                    row["classifications_count"],
-                                    row["retired_at"],
-                                    row["retirement_reason"],
-                                    row["created_at"],
-                                    cr["filename"],
-                                )
-                            ],
-                            "subjects",
-                            8,
-                        )
-                    except:
-                        pass
-                    conn.commit()
-
-    print(
-        str(datetime.now())[0:19]
-        + "  Subjects file:"
-        + " "
-        + str(k)
-        + " lines read and inspected"
-        + " "
-        + str(m)
-        + " records selected and copied"
-    )
-    return True
-
-
 def main():
     "Handles argument parsing and launches the correct function."
     parser = argparse.ArgumentParser()
@@ -178,15 +37,81 @@ def main():
     last_date = "2020-01-10 00:00:00 UTC"
     first_date = "2019-11-17 00:00:00 UTC"
 
+    #get the export subjects
+    export = project.get_export('subjects')
+
+    #save the response as pandas data frame
+    rawdata = pd.read_csv(io.StringIO(export.content.decode('utf-8')),
+                          usecols = ['subject_id','metadata', 'created_at'])
+
+    #Filter manually uploaded subjects
+    man_data = rawdata[(last_date >= rawdata.created_at)&
+                       (first_date <= rawdata.created_at)]
+
+    #filter clip subjects
+    man_data = man_data[man_data['metadata'].str.contains(".mp4")].reset_index()
+
     # Specify the location to write the csv files
     dstn_subj = "../all_subjects.csv"
     out_location_subj = "../manually_uploaded_subjects.csv"
 
-    print(download_exports(project, dstn_subj))
-    print(
-        slice_exports(args.db_path, dstn_subj, out_location_subj, first_date, last_date)
-    )
+    #flatten the metadata information
+    flat_metadata = pd.json_normalize(man_data.metadata.apply(json.loads))
 
+    #Select the filename of the clips
+    clip_filenames = flat_metadata['filename']
+
+    #Get the starting time of clips in relation to the original movie
+    #split the filename, select the last section, and remove the extension type
+    flat_metadata['start_time'] = clip_filenames.str.rsplit("_", 1).str[-1].str.replace(".mp4", "")
+
+
+    #Extract the filename of the original movie
+    flat_metadata['movie_filename'] = flat_metadata.apply(lambda x: x['filename'].replace("_"+x['start_time'],''),
+                                                           axis=1)
+
+    #Get the end time of clips in relation to the original movie
+    flat_metadata['start_time'] = pd.to_numeric(flat_metadata['start_time'], downcast='signed')
+    flat_metadata['end_time'] = flat_metadata['start_time']+10
+
+    #select only relevant columns
+    flat_metadata = flat_metadata[['filename','movie_filename','start_time','end_time']]
+
+
+    #Retrieve the id and filename from the movies table 
+    flat_metadata['movie_id'] = flat_metadata.apply(lambda x: execute_query(f"SELECT movie_id FROM movies WHERE filename=={x['movie_filename']}"))
+
+    #add movie_id to the flat metadata 
+    #clip_metadata = pd.merge(flat_metadata, movies, how = 'left', 
+    #                         left_on='movie_filename', right_on='filename')
+
+    #Drop metadata column and define clip creation date as time uploaded to Zooniverse 
+    man_data = man_data.drop(columns='metadata')
+
+    #Combine the information 
+    comb_data = pd.concat(man_data, flat_metadata, axis = 1)
+
+    #Select information to include in the clips table
+    clips = comb_data.drop(columns='subject_id').rename(columns={'created_at':'clipped_date',
+                                                                 'index':'id'})
+
+    #Combine the info to include in the subjects table
+    subjects = comb_data.rename(columns={'created_at':'zoo_upload_date',
+                                         'index':'clip_id',
+                                         'subject_id':'id'})
+
+
+    # update the tables
+    conn = create_connection(args.db_path)
+
+    try:
+        insert_many(conn, [tuple(i) for i in clips.values], "clips", 6)
+        insert_many(conn, [tuple(i) for i in subjects.values], "subjects", 9)
+    except sqlite3.Error as e:
+        print(e)
+
+    conn.commit()
+ 
 
 if __name__ == "__main__":
     main()
