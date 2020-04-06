@@ -15,181 +15,6 @@ from zooniverse_setup import *
 workflow_1 = 11767
 workflow_1_version = 227
 
-def download_file(url, dstn):
-    request = requests.get(url, stream=True)
-    with open(dstn, "wb") as dstn_f:
-        for chunk in request.iter_content(chunk_size=4096):
-            dstn_f.write(chunk)
-    return dstn
-
-
-def download_exports(projt, dstn_cl):
-    # replace path and filename strings for where you want the exports saved in the next two lines:
-    try:
-        meta_class = projt.describe_export("classifications")
-        generated = meta_class["media"][0]["updated_at"][0:19]
-        tdelta = (
-            datetime.now() - datetime.strptime(generated, "%Y-%m-%dT%H:%M:%S")
-        ).total_seconds()
-        age = 300 + int(tdelta / 60)
-        print(str(datetime.now())[0:19] + "  Classifications export", age, " hours old")
-        url_class = meta_class["media"][0]["src"]
-        file_class = download_file(url_class, dstn_cl)
-        print(str(datetime.now())[0:19] + "  " + file_class + " downloaded")
-    except:
-        print(str(datetime.now())[0:19] + "  Classifications download did not complete")
-        return False
-    return True
-
-
-def include_class(class_record):
-    #  define a function that returns True or False based on whether the argument record is to be included or not in
-    #  the output file based on the conditional clauses.
-    #  many other conditions could be set up to determine if a record is to be processed and the flattened data
-    #  written to the output file. Any or all of these conditional tests that are not needed can be deleted or
-    # commented out with '#' placed in front of the line(s)of code that are not required.
-
-    if int(class_record["workflow_id"]) == workflow_1:
-        pass  # replace'!= 0000' with '== xxxx' where xxxx is the workflow to include.  This is also useful to
-        # exclude a specific workflow as well.
-    else:
-        return False
-    if float(class_record["workflow_version"]) >= workflow_1_version:
-        pass  # replace '001.01' with first version of the workflow to include.
-    else:
-        return False
-    if 100000000 >= int(class_record["subject_ids"]) >= 0000:
-        pass  # replace upper and lower subject_ids to include only a specified range of subjects - This is
-        # a very useful slice since subjects are selected together and can still be aggregated.
-    else:
-        return False
-    if not class_record["gold_standard"] and not class_record["expert"]:
-        pass  # this filters for gold standard classifications only
-    else:
-        return False
-    if (
-        "2100-00-10 00:00:00 UTC"
-        >= class_record["created_at"]
-        >= "2000-00-10 00:00:00 UTC"
-    ):
-        pass  # replace earliest and latest created_at date and times to select records commenced in a
-        #  specific time period
-    else:
-        return False
-    # otherwise :
-    return True
-
-
-def slice_exports(dstn_cl, out_location_cl):
-    with open(out_location_cl, "w", newline="") as file:
-        fieldnames = [
-            "classification_id",
-            "user_name",
-            "user_id",
-            "user_ip",
-            "workflow_id",
-            "workflow_name",
-            "workflow_version",
-            "created_at",
-            "gold_standard",
-            "expert",
-            "metadata",
-            "annotations",
-            "subject_data",
-            "subject_ids",
-        ]
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-
-        # this area for initializing counters, status lists and loading pick lists into memory:
-        i = 0
-        j = 0
-
-        #  open the zooniverse data file using dictreader
-        with open(dstn_cl) as f:
-            r = csv.DictReader(f)
-            for row in r:
-                i += 1
-                if include_class(row):
-                    j += 1
-                    # This set up the writer to match the field names above and the variable names of their values:
-                    writer.writerow(
-                        {
-                            "classification_id": row["classification_id"],
-                            "user_name": row["user_name"],
-                            "user_id": row["user_id"],
-                            "user_ip": row["user_ip"],
-                            "workflow_id": row["workflow_id"],
-                            "workflow_name": row["workflow_name"],
-                            "workflow_version": row["workflow_version"],
-                            "created_at": row["created_at"],
-                            "gold_standard": row["gold_standard"],
-                            "expert": row["expert"],
-                            "metadata": row["metadata"],
-                            "annotations": row["annotations"],
-                            "subject_data": row["subject_data"],
-                            "subject_ids": row["subject_ids"],
-                        }
-                    )
-
-    # This area prints some basic process info and status
-    print(
-        str(datetime.now())[0:19]
-        + "  Classification file:"
-        + " "
-        + str(i)
-        + " lines read and inspected"
-        + " "
-        + str(j)
-        + " records selected and copied"
-    )
-
-    k = 0
-    m = 0
-    return True
-
-
-def include(class_record):
-    #  define a function that returns True or False based on whether the argument record is to be
-    #  included or not in the output file based on the conditional clauses.
-    #  many other conditions could be set up to determine if a record is to be processed and the
-    #  flattened data written to the output file (see flatten_class_frame for more options).
-
-    if int(class_record["workflow_id"]) == workflow_1:
-        pass  # this one selects the workflow to include.
-    else:
-        return False
-    if float(class_record["workflow_version"]) >= workflow_1_version:
-        pass  # this one selects the first version of the workflow to include. Note the workflows
-        #  must be compatible with the structure (task numbers) choices, and questions (they could
-        #  differ in confusions, characteristics or other wording differences.)
-    else:
-        return False
-    # otherwise :
-    return True
-
-
-def load_questions(question_file):
-    #  This function loads the question.csv and creates a dictionary in memory with the possible responses
-    with open(question_file) as qu_file:
-        questdict = csv.DictReader(qu_file)
-        questions_answers = {}
-        translate_table = dict(
-            (ord(char), "") for char in u"!\"#%'()*+,-./:;<=>?@[\]^_`{|}~"
-        )
-        for quest in questdict:
-            questions_answers[
-                quest["Question"].upper().translate(translate_table).replace(" ", "")
-            ] = (quest["Answers"].upper().translate(translate_table).split())
-        return questions_answers
-
-
-def empty(ques, resp):
-    blank = []
-    for q1 in range(0, len(ques)):
-        blank.append([0 for r1 in resp[q1]])
-    return blank
-
 
 def main():
 
@@ -216,200 +41,109 @@ def main():
 
     project = auth_session(args.user, args.password)
 
-    # Specify the location to write the csv files
-    all_class = "../all_classifications.csv"
-    w1_class = "../workflow1_classifications.csv"
 
-    print(download_exports(project, all_class))
-    print(slice_exports(all_class, w1_class))
+    #get the export classifications
+    export = project.get_export('classifications')
 
-    # The questions and choices files used to set up the survey project:
-    question_file = args.question_path
+    #save the response as pandas data frame
+    rawdata = pd.read_csv(io.StringIO(export.content.decode('utf-8')),
+                          usecols = ['subject_ids','classification_id', 'workflow_id',
+                                    'workflow_version','annotations'])
+    #Filter w1 classifications
+    w1_data = rawdata[(rawdata.workflow_id >= workflow_1) &
+                      (rawdata.workflow_version >= workflow_1_version)].reset_index()
 
-    # Output file names (whatever you want them to be)
-    out_w1_class = "../flatten_class_w1.csv"
-    agg_w1_class = "../flatten_class_w1_aggregate.csv"
+    #Drop worflow columns
+    w1_data = w1_data.drop(columns=['workflow_id','workflow_version'])
 
-    with open(out_w1_class, "w", newline="") as ou_file:
-        fieldnames = [
-            "classification_id",
-            "subject_ids",
-            "created_at",
-            "user_name",
-            "user_ip",
-            "choice",
-            "how_many",
-            "first_time",
-            "subject_choices",
-            "all_choices",
-        ]
-        writer = csv.DictWriter(ou_file, fieldnames=fieldnames)
-        writer.writeheader()
+    #Create empty df
+    flat_data = pd.DataFrame(columns=['classification_id', 'label',
+                                      'first_seen', 'how_many'])
 
-        # this area for initializing counters, status lists and loading pick lists into memory:
-        rc2 = 0
-        rc1 = 0
-        wc1 = 0
-        #  this loads the question.csv as a dictionary we can split to get the question labels
-        #  and possible responses we need to breakout the survey data.  It should produce the same
-        #  question and response labels as the project builder but strange characters in the questions
-        #  may need to be individually dealt with by adding them to the translation table in the function.
-        q_a = load_questions(question_file)
-        questions = list(q_a.keys())
-        responses = list(q_a.values())
-
-        #  open the zooniverse data file using dictreader, and load the more complex json strings
-        #  as python objects using json.loads()
-    with open(out_w1_class, "w", newline="") as ou_file:
-        fieldnames = [
-            "classification_id",
-            "subject_ids",
-            "created_at",
-            "user_name",
-            "user_ip",
-            "single_ann_clip_choice",
-            "single_ann_clip_how_many",
-            "single_ann_clip_first_time",
-            "single_ann_clip_trash",
-        ]
-        writer = csv.DictWriter(ou_file, fieldnames=fieldnames)
-        writer.writeheader()
-
-        # this area for initializing counters, status lists and loading pick lists into memory:
-        rc2 = 0
-        rc1 = 0
-        wc1 = 0
-
-        #  create a dictionary with the same question and response labels as the project builder.
-        questions = ["INDIVIDUAL", "FIRSTTIME", "TYPEOFOBJECT"]
-        responses = [
-            ["1", "2", "3", "4"],
-            ["0S", "1S", "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S"],
-            ["FISHING", "MATERIALLITTER"],
-        ]
-
-        #  open the zooniverse data file using dictreader, and load the more complex json strings
-        #  as python objects using json.loads()
-        with open(w1_class) as class_file:
-            classifications = csv.DictReader(class_file)
-            for row in classifications:
-                rc2 += 1
-                # useful for debugging - set the number of record to process at a low number ~1000
-                if (
-                    rc2 == 150000
-                ):  # one more than the last line of zooniverse file to read if not EOF
-                    break
-                if include(row) is True:
-                    rc1 += 1
-                    annotations = json.loads(row["annotations"])
-
-                    # reset field variables for the survey task for each new row
-                    choice = ""
-                    answer = ["" for q4 in questions]
-
-                    for task in annotations:
-                        # If the workflow has additional tasks or you want to add other general utilities
-                        # blocks, put them here before the survey task, so the writer block will have the
-                        # all the data it needs prior to the end of the survey task block.
-
-                        # The survey task block:
+    for index, row in w1_data.iterrows():
+        #load annotations as json format
+        annotations = json.loads(row['annotations'])
+        
+        #select the information from the species identification task
+        for task_i in annotations:
+            try:
+                if task_i['task'] == 'T4':
+                    #select each species annotation and flatten the relevant answers
+                    for species in task_i['value']:
                         try:
-                            #  main survey task recognized by project specific task number - in this case 'T0'
-                            #  you need this to match your own project - it may be different!
-                            if task["task"] == "T4":
-                                try:
-                                    for species in task["value"]:
-                                        choice = species["choice"]
-                                        answer_vector = empty(questions, responses)
-
-                                        for q in range(0, len(questions)):
-                                            try:
-                                                answer[q] = [
-                                                    val
-                                                    for key, val in species[
-                                                        "answers"
-                                                    ].items()
-                                                    if questions[q] in key
-                                                ]
-                                            except KeyError:
-                                                continue
-
-                                        # This sets up the writer to match the field names above and the
-                                        # variable names of their values. Note we write one line per
-                                        # subject_choices:
-                                        wc1 += 1
-                                        writer.writerow(
-                                            {
-                                                "classification_id": row[
-                                                    "classification_id"
-                                                ],
-                                                "subject_ids": row["subject_ids"],
-                                                "created_at": row["created_at"],
-                                                "user_name": row["user_name"],
-                                                "user_ip": row["user_ip"],
-                                                "single_ann_clip_choice": choice,
-                                                "single_ann_clip_how_many": "".join(
-                                                    map(str, answer[0])
-                                                ),
-                                                "single_ann_clip_first_time": "".join(
-                                                    map(str, answer[1])
-                                                ).replace("S", ""),
-                                                "single_ann_clip_trash": "".join(
-                                                    map(str, answer[2])
-                                                ),
-                                            }
-                                        )
-                                except KeyError:
-                                    continue
+                            #loop through the answers and add them to the row
+                            answers = species['answers']
+                            if len(answers)==0:
+                                f_time = ""
+                                inds = ""
+                            else:
+                                for k in answers.keys():
+                                    try:
+                                        if 'FIRSTTIME' in k:
+                                            f_time = answers[k].replace("S","")
+                                        if 'INDIVIDUAL' in k:
+                                            inds = answers[k]
+                                    except KeyError:
+                                        continue
+                                            
+                            #include a new row with the species of choice, class and subject ids                
+                            flat_data = flat_data.append({'classification_id': row['classification_id'],
+                                                          'label': species['choice'],
+                                                          'first_seen': f_time,
+                                                          'how_many': inds},
+                                                         ignore_index=True)
                         except KeyError:
                             continue
+            except KeyError:
+                continue
 
-    # This area prints some basic process info and status
-    print(
-        rc2,
-        "lines read and inspected.",
-        rc1,
-        "records processed and",
-        wc1,
-        "lines written.",
-    )
+    #Specify the type of columns
+    flat_data['how_many'] = pd.to_numeric(flat_data['how_many'])
+    flat_data['first_seen'] = pd.to_numeric(flat_data['first_seen'])
 
-    # Aggregate the classifications
+    #Add the subject_ids to the dataframe
+    class_data = pd.merge(flat_data, w1_data.drop(columns=['annotations']), how='left', on='classification_id')
 
-    # Load the csv as df to handle with pandas
-    w1_data = pd.read_csv(out_w1_class)
+    #Calculate the number of different classifications per subject 
+    class_data["class_subject"] = class_data.groupby('subject_ids')['classification_id'].transform('nunique')
 
-    # Calculate the number of different classifications per subject
-    w1_data["class_subject"] = w1_data.groupby("subject_ids")[
-        "classification_id"
-    ].transform("nunique")
+    #Select subjects with at least 4 different classifications
+    class_data = class_data[class_data.class_subject > 3]
 
-    # Select subjects with at least 4 different classifications
-    w1_data = w1_data[w1_data.class_subject > 3]
+    #Calculate the proportion of users that agreed on their classifications
+    class_data["class_n"] = class_data.groupby(['subject_ids','label'])['classification_id'].transform('count')
+    class_data["class_prop"] = class_data.class_n/class_data.class_subject
 
-    # Calculate the proportion of users that agreed on their classifications
-    w1_data["class_n"] = w1_data.groupby(["subject_ids", "single_ann_clip_choice"])[
-        "classification_id"
-    ].transform("count")
-    w1_data["class_prop"] = w1_data.class_n / w1_data.class_subject
+    #Select subjects where at least 80% of the users agree in their classification
+    class_data = class_data[class_data.class_prop > .8]
 
-    # Select subjects where at least 80% of the users agree in their classification
-    w1_data = w1_data[w1_data.class_prop > 0.8]
+    #extract the median of the second where the animal/object is and the number of animals
+    class_data = class_data.groupby(['subject_ids','label'], as_index=False)
+    class_data = pd.DataFrame(class_data[['how_many', 'first_seen']].median())
 
-    # extract the median of the second where the animal/object is and the number of animals
-    w1_data = w1_data.groupby(["subject_ids", "single_ann_clip_choice"], as_index=False)
-    w1_data = pd.DataFrame(
-        w1_data[["single_ann_clip_how_many", "single_ann_clip_first_time"]].median()
-    )
+    #add index as id
+    class_data = class_data.reset_index().rename(columns={'index':'id',
+                                                         'subject_ids':'subject_id'})
+    #Retrieve the id and clip_id from the subjects table 
+    subjects = class_data.apply(lambda x: execute_query(f"SELECT id, clip_id FROM subjects WHERE id=={x['subject_id']}"))
 
-    # save csv file of the classified subjects
-    w1_data.to_csv(agg_w1_class, index=False, header=True)
+    #add clip_id to the classifications dataframe
+    class_data = pd.merge(class_data, subjects, how = 'left', 
+                             left_on='subject_id', right_on='id')
 
-    # Add to agg_classifications db
+    #Retrieve the id and label from the species table 
+    species = pd.DataFrame(execute_query(f"SELECT * FROM species"))
+
+    #add species_id to the classifications dataframe
+    class_data = pd.merge(class_data, species, how = 'left', 
+                             left_on='species_id', right_on='id')
+
+
+    # Add to agg_annotations_clip table
     conn = create_connection(args.db_path)
 
     try:
-        insert_many(conn, [tuple(i) for i in w1_data.values], "agg_classifications", 4)
+        insert_many(conn, [tuple(i) for i in class_data.values], "agg_classifications", 4)
     except sqlite3.Error as e:
         print(e)
 

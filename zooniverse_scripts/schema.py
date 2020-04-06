@@ -1,6 +1,6 @@
 sql = """CREATE TABLE movies
 (
-id integer PRIMARY KEY,
+id integer PRIMARY KEY AUTOINCREMENT,
 filename text NULL,
 created_on datetime NULL,
 duration datetime NULL,
@@ -46,7 +46,7 @@ FOREIGN KEY (frame_id) REFERENCES frames (id)
 
 CREATE TABLE species
 (
-id varchar PRIMARY KEY,
+id varchar PRIMARY KEY AUTOINCREMENT,
 label text
 );
 
@@ -70,14 +70,12 @@ frame_id integer,
 FOREIGN KEY (frame_id) REFERENCES frames (id)
 );
 
-
+CREATE TABLE IF NOT EXISTS sites
+(
+id integer PRIMARY KEY AUTOINCREMENT,
+name text NULL,
+coord_lat varchar(255) NULL,
+coord_lon varchar(255) NULL,
+protected varchar(255) NULL
+);
 """
-
-# CREATE TABLE IF NOT EXISTS sites
-# (
-# id integer PRIMARY KEY,
-# name text,
-# coord varchar(255),
-# protected varchar(255)
-# );
-
