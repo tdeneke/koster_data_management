@@ -46,7 +46,7 @@ FOREIGN KEY (frame_id) REFERENCES frames (id)
 
 CREATE TABLE species
 (
-id varchar PRIMARY KEY AUTOINCREMENT,
+id integer PRIMARY KEY AUTOINCREMENT,
 label text
 );
 
