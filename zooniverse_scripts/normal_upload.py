@@ -18,6 +18,7 @@ from panoptes_client import (
     Panoptes,
 )  # needed to upload clips to Zooniverse
 
+
 def get_length(filename):
     result = subprocess.run(
         [

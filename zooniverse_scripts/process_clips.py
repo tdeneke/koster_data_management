@@ -41,109 +41,139 @@ def main():
 
     project = auth_session(args.user, args.password)
 
+    # get the export classifications
+    export = project.get_export("classifications")
 
-    #get the export classifications
-    export = project.get_export('classifications')
+    # save the response as pandas data frame
+    rawdata = pd.read_csv(
+        io.StringIO(export.content.decode("utf-8")),
+        usecols=[
+            "subject_ids",
+            "classification_id",
+            "workflow_id",
+            "workflow_version",
+            "annotations",
+        ],
+    )
+    # Filter w1 classifications
+    w1_data = rawdata[
+        (rawdata.workflow_id >= workflow_1)
+        & (rawdata.workflow_version >= workflow_1_version)
+    ].reset_index()
 
-    #save the response as pandas data frame
-    rawdata = pd.read_csv(io.StringIO(export.content.decode('utf-8')),
-                          usecols = ['subject_ids','classification_id', 'workflow_id',
-                                    'workflow_version','annotations'])
-    #Filter w1 classifications
-    w1_data = rawdata[(rawdata.workflow_id >= workflow_1) &
-                      (rawdata.workflow_version >= workflow_1_version)].reset_index()
+    # Drop worflow columns
+    w1_data = w1_data.drop(columns=["workflow_id", "workflow_version"])
 
-    #Drop worflow columns
-    w1_data = w1_data.drop(columns=['workflow_id','workflow_version'])
-
-    #Create empty df
-    flat_data = pd.DataFrame(columns=['classification_id', 'label',
-                                      'first_seen', 'how_many'])
+    # Create empty df
+    flat_data = pd.DataFrame(
+        columns=["classification_id", "label", "first_seen", "how_many"]
+    )
 
     for index, row in w1_data.iterrows():
-        #load annotations as json format
-        annotations = json.loads(row['annotations'])
-        
-        #select the information from the species identification task
+        # load annotations as json format
+        annotations = json.loads(row["annotations"])
+
+        # select the information from the species identification task
         for task_i in annotations:
             try:
-                if task_i['task'] == 'T4':
-                    #select each species annotation and flatten the relevant answers
-                    for species in task_i['value']:
+                if task_i["task"] == "T4":
+                    # select each species annotation and flatten the relevant answers
+                    for species in task_i["value"]:
                         try:
-                            #loop through the answers and add them to the row
-                            answers = species['answers']
-                            if len(answers)==0:
+                            # loop through the answers and add them to the row
+                            answers = species["answers"]
+                            if len(answers) == 0:
                                 f_time = ""
                                 inds = ""
                             else:
                                 for k in answers.keys():
                                     try:
-                                        if 'FIRSTTIME' in k:
-                                            f_time = answers[k].replace("S","")
-                                        if 'INDIVIDUAL' in k:
+                                        if "FIRSTTIME" in k:
+                                            f_time = answers[k].replace("S", "")
+                                        if "INDIVIDUAL" in k:
                                             inds = answers[k]
                                     except KeyError:
                                         continue
-                                            
-                            #include a new row with the species of choice, class and subject ids                
-                            flat_data = flat_data.append({'classification_id': row['classification_id'],
-                                                          'label': species['choice'],
-                                                          'first_seen': f_time,
-                                                          'how_many': inds},
-                                                         ignore_index=True)
+
+                            # include a new row with the species of choice, class and subject ids
+                            flat_data = flat_data.append(
+                                {
+                                    "classification_id": row["classification_id"],
+                                    "label": species["choice"],
+                                    "first_seen": f_time,
+                                    "how_many": inds,
+                                },
+                                ignore_index=True,
+                            )
                         except KeyError:
                             continue
             except KeyError:
                 continue
 
-    #Specify the type of columns
-    flat_data['how_many'] = pd.to_numeric(flat_data['how_many'])
-    flat_data['first_seen'] = pd.to_numeric(flat_data['first_seen'])
+    # Specify the type of columns
+    flat_data["how_many"] = pd.to_numeric(flat_data["how_many"])
+    flat_data["first_seen"] = pd.to_numeric(flat_data["first_seen"])
 
-    #Add the subject_ids to the dataframe
-    class_data = pd.merge(flat_data, w1_data.drop(columns=['annotations']), how='left', on='classification_id')
+    # Add the subject_ids to the dataframe
+    class_data = pd.merge(
+        flat_data,
+        w1_data.drop(columns=["annotations"]),
+        how="left",
+        on="classification_id",
+    )
 
-    #Calculate the number of different classifications per subject 
-    class_data["class_subject"] = class_data.groupby('subject_ids')['classification_id'].transform('nunique')
+    # Calculate the number of different classifications per subject
+    class_data["class_subject"] = class_data.groupby("subject_ids")[
+        "classification_id"
+    ].transform("nunique")
 
-    #Select subjects with at least 4 different classifications
+    # Select subjects with at least 4 different classifications
     class_data = class_data[class_data.class_subject > 3]
 
-    #Calculate the proportion of users that agreed on their classifications
-    class_data["class_n"] = class_data.groupby(['subject_ids','label'])['classification_id'].transform('count')
-    class_data["class_prop"] = class_data.class_n/class_data.class_subject
+    # Calculate the proportion of users that agreed on their classifications
+    class_data["class_n"] = class_data.groupby(["subject_ids", "label"])[
+        "classification_id"
+    ].transform("count")
+    class_data["class_prop"] = class_data.class_n / class_data.class_subject
 
-    #Select subjects where at least 80% of the users agree in their classification
-    class_data = class_data[class_data.class_prop > .8]
+    # Select subjects where at least 80% of the users agree in their classification
+    class_data = class_data[class_data.class_prop > 0.8]
 
-    #extract the median of the second where the animal/object is and the number of animals
-    class_data = class_data.groupby(['subject_ids','label'], as_index=False)
-    class_data = pd.DataFrame(class_data[['how_many', 'first_seen']].median())
+    # extract the median of the second where the animal/object is and the number of animals
+    class_data = class_data.groupby(["subject_ids", "label"], as_index=False)
+    class_data = pd.DataFrame(class_data[["how_many", "first_seen"]].median())
 
-    #add index as id
-    class_data = class_data.reset_index().rename(columns={'index':'id',
-                                                         'subject_ids':'subject_id'})
-    #Retrieve the id and clip_id from the subjects table 
-    subjects = class_data.apply(lambda x: execute_query(f"SELECT id, clip_id FROM subjects WHERE id=={x['subject_id']}"))
+    # add index as id
+    class_data = class_data.reset_index().rename(
+        columns={"index": "id", "subject_ids": "subject_id"}
+    )
+    # Retrieve the id and clip_id from the subjects table
+    subjects = class_data.apply(
+        lambda x: execute_query(
+            f"SELECT id, clip_id FROM subjects WHERE id=={x['subject_id']}"
+        )
+    )
 
-    #add clip_id to the classifications dataframe
-    class_data = pd.merge(class_data, subjects, how = 'left', 
-                             left_on='subject_id', right_on='id')
+    # add clip_id to the classifications dataframe
+    class_data = pd.merge(
+        class_data, subjects, how="left", left_on="subject_id", right_on="id"
+    )
 
-    #Retrieve the id and label from the species table 
+    # Retrieve the id and label from the species table
     species = pd.DataFrame(execute_query(f"SELECT * FROM species"))
 
-    #add species_id to the classifications dataframe
-    class_data = pd.merge(class_data, species, how = 'left', 
-                             left_on='species_id', right_on='id')
-
+    # add species_id to the classifications dataframe
+    class_data = pd.merge(
+        class_data, species, how="left", left_on="species_id", right_on="id"
+    )
 
     # Add to agg_annotations_clip table
     conn = create_connection(args.db_path)
 
     try:
-        insert_many(conn, [tuple(i) for i in class_data.values], "agg_classifications", 4)
+        insert_many(
+            conn, [tuple(i) for i in class_data.values], "agg_classifications", 4
+        )
     except sqlite3.Error as e:
         print(e)
 

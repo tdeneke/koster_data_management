@@ -47,7 +47,7 @@ def retrieve_query(conn, query):
         cur.execute(query)
     except sqlite3.Error as e:
         print(e)
-    
+
     rows = cur.fetchall()
 
     return rows

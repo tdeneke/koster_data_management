@@ -37,69 +37,85 @@ def main():
     last_date = "2020-01-10 00:00:00 UTC"
     first_date = "2019-11-17 00:00:00 UTC"
 
-    #get the export subjects
-    export = project.get_export('subjects')
+    # get the export subjects
+    export = project.get_export("subjects")
 
-    #save the response as pandas data frame
-    rawdata = pd.read_csv(io.StringIO(export.content.decode('utf-8')),
-                          usecols = ['subject_id','metadata', 'created_at'])
+    # save the response as pandas data frame
+    rawdata = pd.read_csv(
+        io.StringIO(export.content.decode("utf-8")),
+        usecols=["subject_id", "metadata", "created_at"],
+    )
 
-    #Filter manually uploaded subjects
-    man_data = rawdata[(last_date >= rawdata.created_at)&
-                       (first_date <= rawdata.created_at)]
+    # Filter manually uploaded subjects
+    man_data = rawdata[
+        (last_date >= rawdata.created_at) & (first_date <= rawdata.created_at)
+    ]
 
-    #filter clip subjects
-    man_data = man_data[man_data['metadata'].str.contains(".mp4")].reset_index()
+    # filter clip subjects
+    man_data = man_data[man_data["metadata"].str.contains(".mp4")].reset_index()
 
     # Specify the location to write the csv files
     dstn_subj = "../all_subjects.csv"
     out_location_subj = "../manually_uploaded_subjects.csv"
 
-    #flatten the metadata information
+    # flatten the metadata information
     flat_metadata = pd.json_normalize(man_data.metadata.apply(json.loads))
 
-    #Select the filename of the clips
-    clip_filenames = flat_metadata['filename']
+    # Select the filename of the clips
+    clip_filenames = flat_metadata["filename"]
 
-    #Get the starting time of clips in relation to the original movie
-    #split the filename, select the last section, and remove the extension type
-    flat_metadata['start_time'] = clip_filenames.str.rsplit("_", 1).str[-1].str.replace(".mp4", "")
+    # Get the starting time of clips in relation to the original movie
+    # split the filename, select the last section, and remove the extension type
+    flat_metadata["start_time"] = (
+        clip_filenames.str.rsplit("_", 1).str[-1].str.replace(".mp4", "")
+    )
 
+    # Extract the filename of the original movie
+    flat_metadata["movie_filename"] = flat_metadata.apply(
+        lambda x: x["filename"].replace("_" + x["start_time"], ""), axis=1
+    )
 
-    #Extract the filename of the original movie
-    flat_metadata['movie_filename'] = flat_metadata.apply(lambda x: x['filename'].replace("_"+x['start_time'],''),
-                                                           axis=1)
+    # Get the end time of clips in relation to the original movie
+    flat_metadata["start_time"] = pd.to_numeric(
+        flat_metadata["start_time"], downcast="signed"
+    )
+    flat_metadata["end_time"] = flat_metadata["start_time"] + 10
 
-    #Get the end time of clips in relation to the original movie
-    flat_metadata['start_time'] = pd.to_numeric(flat_metadata['start_time'], downcast='signed')
-    flat_metadata['end_time'] = flat_metadata['start_time']+10
+    # select only relevant columns
+    flat_metadata = flat_metadata[
+        ["filename", "movie_filename", "start_time", "end_time"]
+    ]
 
-    #select only relevant columns
-    flat_metadata = flat_metadata[['filename','movie_filename','start_time','end_time']]
+    # Retrieve the id and filename from the movies table
+    flat_metadata["movie_id"] = flat_metadata.apply(
+        lambda x: execute_query(
+            f"SELECT movie_id FROM movies WHERE filename=={x['movie_filename']}"
+        )
+    )
 
-
-    #Retrieve the id and filename from the movies table 
-    flat_metadata['movie_id'] = flat_metadata.apply(lambda x: execute_query(f"SELECT movie_id FROM movies WHERE filename=={x['movie_filename']}"))
-
-    #add movie_id to the flat metadata 
-    #clip_metadata = pd.merge(flat_metadata, movies, how = 'left', 
+    # add movie_id to the flat metadata
+    # clip_metadata = pd.merge(flat_metadata, movies, how = 'left',
     #                         left_on='movie_filename', right_on='filename')
 
-    #Drop metadata column and define clip creation date as time uploaded to Zooniverse 
-    man_data = man_data.drop(columns='metadata')
+    # Drop metadata column and define clip creation date as time uploaded to Zooniverse
+    man_data = man_data.drop(columns="metadata")
 
-    #Combine the information 
-    comb_data = pd.concat(man_data, flat_metadata, axis = 1)
+    # Combine the information
+    comb_data = pd.concat(man_data, flat_metadata, axis=1)
 
-    #Select information to include in the clips table
-    clips = comb_data.drop(columns='subject_id').rename(columns={'created_at':'clipped_date',
-                                                                 'index':'id'})
+    # Select information to include in the clips table
+    clips = comb_data.drop(columns="subject_id").rename(
+        columns={"created_at": "clipped_date", "index": "id"}
+    )
 
-    #Combine the info to include in the subjects table
-    subjects = comb_data.rename(columns={'created_at':'zoo_upload_date',
-                                         'index':'clip_id',
-                                         'subject_id':'id'})
-
+    # Combine the info to include in the subjects table
+    subjects = comb_data.rename(
+        columns={
+            "created_at": "zoo_upload_date",
+            "index": "clip_id",
+            "subject_id": "id",
+        }
+    )
 
     # update the tables
     conn = create_connection(args.db_path)
@@ -111,7 +127,7 @@ def main():
         print(e)
 
     conn.commit()
- 
+
 
 if __name__ == "__main__":
     main()
