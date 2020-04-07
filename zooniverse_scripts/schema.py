@@ -1,4 +1,4 @@
-sql = """CREATE TABLE movies
+sql = """CREATE TABLE IF NOT EXISTS movies
 (
 id integer PRIMARY KEY AUTOINCREMENT,
 filename text NULL,
@@ -9,7 +9,7 @@ location text NULL,
 organisation text NULL
 ); 
 
-CREATE TABLE clips
+CREATE TABLE IF NOT EXISTS clips
 (
 id integer PRIMARY KEY,
 filename text NULL,
@@ -20,7 +20,7 @@ movie_id integer,
 FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 
-CREATE TABLE frames
+CREATE TABLE IF NOT EXISTS frames
 (
 id integer PRIMARY KEY,
 frame_number integer,
@@ -29,7 +29,7 @@ movie_id integer,
 FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 
-CREATE TABLE subjects
+CREATE TABLE IF NOT EXISTS subjects
 (
 id integer PRIMARY KEY,
 workflow_id varchar(255) NULL,
@@ -44,13 +44,13 @@ FOREIGN KEY (clip_id) REFERENCES clips (id),
 FOREIGN KEY (frame_id) REFERENCES frames (id)
 );
 
-CREATE TABLE species
+CREATE TABLE IF NOT EXISTS species
 (
 id integer PRIMARY KEY AUTOINCREMENT,
 label text
 );
 
-CREATE TABLE agg_annotations_clip
+CREATE TABLE IF NOT EXISTS agg_annotations_clip
 (
 id integer PRIMARY KEY,
 species_id varchar(255),
@@ -61,7 +61,7 @@ FOREIGN KEY (clip_id) REFERENCES clips (id),
 FOREIGN KEY (species_id) REFERENCES species (id)
 );
 
-CREATE TABLE agg_annotations_frame
+CREATE TABLE IF NOT EXISTS agg_annotations_frame
 (
 id integer PRIMARY KEY,
 species_id varchar(255),

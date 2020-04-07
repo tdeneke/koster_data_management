@@ -24,7 +24,7 @@ def create_connection(db_file):
 
 def insert_many(conn, data, table, count):
     """
-    Query all rows in the contracts table
+    Insert multiple rows into table
     :param conn: the Connection object
     :return:
     """
@@ -36,24 +36,27 @@ def insert_many(conn, data, table, count):
     cur.executemany(f"INSERT INTO {table} VALUES {values}", data)
 
 
-def exec_query(conn, query):
+def retrieve_query(conn, query):
     """
-    Query all rows in the contracts table
+    Execute SQL query and returns output
     :param conn: the Connection object
     :return:
     """
-    cur = conn.cursor()
-    cur.execute(query)
-
+    try:
+        cur = conn.cursor()
+        cur.execute(query)
+    except sqlite3.Error as e:
+        print(e)
+    
     rows = cur.fetchall()
 
     return rows
 
 
 def execute_sql(conn, sql):
-    """ create a table from the create_table_sql statement
+    """ Execute multiple SQL statements without return
     :param conn: Connection object
-    :param create_table_sql: a CREATE TABLE statement
+    :param sql: a string of SQL statements
     :return:
     """
     try:
