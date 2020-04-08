@@ -1,3 +1,4 @@
 panoptes_client==1.1.1
 numpy==1.16.4
 requests==2.21.0
+pandas==1.0.3
