@@ -3,7 +3,7 @@
 #################################################
 # file to edit: dev_nb/process_clip_classifications.ipynb
 # Import required packages
-import os, csv, json, sys
+import io, os, csv, json, sys
 import operator, argparse
 import requests
 import pandas as pd
@@ -14,6 +14,20 @@ from zooniverse_setup import *
 # Specify the workflow of interest and its version
 workflow_1 = 11767
 workflow_1_version = 227
+
+
+def get_id(row):
+
+    # Currently we discard sites that have no lat or lon coordinates, since site descriptions are not unique
+    # it becomes difficult to match this information otherwise
+    try:
+        gid = retrieve_query(
+            create_connection(args.db_path),
+            f"SELECT clip_id FROM subjects WHERE id=={x['subject_id']}",
+        )[0][0]
+    except:
+        gid = 0
+    return gid
 
 
 def main():
@@ -33,9 +47,6 @@ def main():
         help="the absolute path to the database file",
         default=r"koster_lab.db",
         required=True,
-    )
-    parser.add_argument(
-        "--question_path", "-q", help="Path to questions file", type=str, required=True
     )
     args = parser.parse_args()
 
@@ -148,31 +159,31 @@ def main():
         columns={"index": "id", "subject_ids": "subject_id"}
     )
     # Retrieve the id and clip_id from the subjects table
-    subjects = class_data.apply(
-        lambda x: execute_query(
-            f"SELECT id, clip_id FROM subjects WHERE id=={x['subject_id']}"
-        )
-    )
+    class_data["clip_id"] = class_data.apply(get_id, 1)
 
     # add clip_id to the classifications dataframe
-    class_data = pd.merge(
-        class_data, subjects, how="left", left_on="subject_id", right_on="id"
-    )
+    # class_data = pd.merge(
+    #    class_data, subjects, how="left", left_on="subject_id", right_on="id"
+    # )
 
     # Retrieve the id and label from the species table
-    species = pd.DataFrame(execute_query(f"SELECT * FROM species"))
+    species = pd.DataFrame(
+        retrieve_query(create_connection(args.db_path), "SELECT * FROM species"),
+        columns=["species_id", "label"],
+    )
 
     # add species_id to the classifications dataframe
     class_data = pd.merge(
-        class_data, species, how="left", left_on="species_id", right_on="id"
+        class_data, species, how="left", left_on="label", right_on="label"
     )
 
+    class_data = class_data[["id", "species_id", "how_many", "first_seen", "clip_id"]]
     # Add to agg_annotations_clip table
     conn = create_connection(args.db_path)
 
     try:
         insert_many(
-            conn, [tuple(i) for i in class_data.values], "agg_classifications", 4
+            conn, [tuple(i) for i in class_data.values], "agg_annotations_clip", 5
         )
     except sqlite3.Error as e:
         print(e)
