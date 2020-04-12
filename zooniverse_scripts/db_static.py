@@ -140,6 +140,8 @@ def main():
         required=True,
     )
     
+    args = parser.parse_args()
+    
     add_movies(args.movies_file_id, args.db_path)
     add_species(args.species_file_id, args.db_path)
 
