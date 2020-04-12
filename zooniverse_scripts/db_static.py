@@ -1,6 +1,7 @@
 import os, csv, json, sys
 import operator, argparse
 import requests
+import io
 import pandas as pd
 import sqlite3
 from datetime import datetime
