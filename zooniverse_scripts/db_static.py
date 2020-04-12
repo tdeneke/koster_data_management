@@ -48,10 +48,10 @@ def get_site_id(row):
     return site_id
 
 
-def add_movies(gdrive_file_id, db_path):
+def add_movies(movies_file_id, db_path):
 
     # Download the csv with movies information from the google drive
-    movies_csv_resp = download_csv_from_google_drive(gdrive_file_id)
+    movies_csv_resp = download_csv_from_google_drive(movies_file_id)
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode('utf-8')))
 
     # Set up sites information
@@ -98,10 +98,10 @@ def add_movies(gdrive_file_id, db_path):
     print("Updated sites and movies")
 
 
-def add_species(gdrive_file_id, db_path):
+def add_species(species_file_id, db_path):
 
-    # Download the csv with movies information from the google drive
-    species_csv_resp = download_csv_from_google_drive(gdrive_file_id)
+    # Download the csv with species information from the google drive
+    species_csv_resp = download_csv_from_google_drive(species_file_id)
     species_df = pd.read_csv(io.StringIO(species_csv_resp.content.decode('utf-8')))
 
     # Update movies table
@@ -121,3 +121,27 @@ def add_species(gdrive_file_id, db_path):
     conn.commit()
 
     print("Updated species")
+    
+def main():
+    "Handles argument parsing and launches the correct function."
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--species_file_id", "-sp", help="Google drive id of species csv file", type=str, required=True
+    )
+    parser.add_argument(
+        "--movies_file_id", "-mov", help="Google drive id of movies csv file", type=str, required=True
+    )
+    parser.add_argument(
+        "-db",
+        "--db_path",
+        type=str,
+        help="the absolute path to the database file",
+        default=r"koster_lab.db",
+        required=True,
+    )
+    
+    add_movies(args.movies_file_id, args.db_path)
+    add_species(args.species_file_id, args.db_path)
+
+if __name__ == "__main__":
+    main()
