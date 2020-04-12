@@ -79,10 +79,6 @@ def main():
     # filter clip subjects
     man_data = man_data[man_data["metadata"].str.contains(".mp4")].reset_index()
 
-    # Specify the location to write the csv files
-    dstn_subj = "../all_subjects.csv"
-    out_location_subj = "../manually_uploaded_subjects.csv"
-
     # flatten the metadata information
     flat_metadata = pd.json_normalize(man_data.metadata.apply(json.loads))
 
