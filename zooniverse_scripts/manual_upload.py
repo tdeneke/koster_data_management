@@ -137,6 +137,7 @@ def main():
     subjects = comb_data.rename(
         columns={
             "created_at": "zoo_upload_date",
+            "retirement_reason": "retirement_criteria",
             "index": "clip_id",
             "subject_id": "id",
         }
@@ -149,7 +150,7 @@ def main():
             "subject_set_id",
             "classifications_count",
             "retired_at",
-            "retirement_reason",
+            "retirement_criteria",
             "zoo_upload_date",
             "clip_id",
         ]
