@@ -10,29 +10,31 @@ from zooniverse_setup import *
 
 
 def download_csv_from_google_drive(id):
-    
+
     # Download the csv files stored in Google Drive with initial information about
     # the movies and the species
-    
+
     URL = "https://docs.google.com/uc?export=download"
 
     session = requests.Session()
 
-    response = session.get(URL, params = { 'id' : id }, stream = True)
+    response = session.get(URL, params={"id": id}, stream=True)
     token = get_confirm_token(response)
 
     if token:
-        params = { 'id' : id, 'confirm' : token }
-        response = session.get(URL, params = params, stream = True)
+        params = {"id": id, "confirm": token}
+        response = session.get(URL, params=params, stream=True)
 
     return response
 
+
 def get_confirm_token(response):
     for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
+        if key.startswith("download_warning"):
             return value
 
     return None
+
 
 def get_site_id(row):
 
@@ -42,7 +44,7 @@ def get_site_id(row):
     try:
         site_id = retrieve_query(
             conn,
-            f"SELECT id FROM sites WHERE coord_lat=={row['CentroidLat']} AND coord_lon=={row['CentroidLong']}"
+            f"SELECT id FROM sites WHERE coord_lat=={row['CentroidLat']} AND coord_lon=={row['CentroidLong']}",
         )[0][0]
     except:
         site_id = 0
@@ -53,7 +55,7 @@ def add_movies(movies_file_id, db_path):
 
     # Download the csv with movies information from the google drive
     movies_csv_resp = download_csv_from_google_drive(movies_file_id)
-    movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode('utf-8')))
+    movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
     # Set up sites information
     sites_df = (
@@ -103,7 +105,7 @@ def add_species(species_file_id, db_path):
 
     # Download the csv with species information from the google drive
     species_csv_resp = download_csv_from_google_drive(species_file_id)
-    species_df = pd.read_csv(io.StringIO(species_csv_resp.content.decode('utf-8')))
+    species_df = pd.read_csv(io.StringIO(species_csv_resp.content.decode("utf-8")))
 
     # Update movies table
     conn = create_connection(db_path)
@@ -122,15 +124,24 @@ def add_species(species_file_id, db_path):
     conn.commit()
 
     print("Updated species")
-    
+
+
 def main():
     "Handles argument parsing and launches the correct function."
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--species_file_id", "-sp", help="Google drive id of species csv file", type=str, required=True
+        "--species_file_id",
+        "-sp",
+        help="Google drive id of species csv file",
+        type=str,
+        required=True,
     )
     parser.add_argument(
-        "--movies_file_id", "-mov", help="Google drive id of movies csv file", type=str, required=True
+        "--movies_file_id",
+        "-mov",
+        help="Google drive id of movies csv file",
+        type=str,
+        required=True,
     )
     parser.add_argument(
         "-db",
@@ -140,11 +151,12 @@ def main():
         default=r"koster_lab.db",
         required=True,
     )
-    
+
     args = parser.parse_args()
-    
+
     add_movies(args.movies_file_id, args.db_path)
     add_species(args.species_file_id, args.db_path)
+
 
 if __name__ == "__main__":
     main()

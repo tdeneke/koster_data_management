@@ -20,15 +20,6 @@ movie_id integer,
 FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 
-CREATE TABLE IF NOT EXISTS frames
-(
-id integer PRIMARY KEY,
-frame_number integer,
-movie_time datetime,
-movie_id integer,
-FOREIGN KEY (movie_id) REFERENCES movies (id)
-);
-
 CREATE TABLE IF NOT EXISTS subjects
 (
 id integer PRIMARY KEY,
@@ -39,9 +30,7 @@ retired_at datetime NULL,
 retirement_criteria text NULL,
 zoo_upload_date datetime,
 clip_id integer,
-frame_id integer,
-FOREIGN KEY (clip_id) REFERENCES clips (id),
-FOREIGN KEY (frame_id) REFERENCES frames (id)
+FOREIGN KEY (clip_id) REFERENCES clips (id)
 );
 
 CREATE TABLE IF NOT EXISTS species
@@ -66,8 +55,9 @@ CREATE TABLE IF NOT EXISTS agg_annotations_frame
 id integer PRIMARY KEY,
 species_id varchar(255),
 x_position integer,
-frame_id integer,
-FOREIGN KEY (frame_id) REFERENCES frames (id)
+frame_number integer,
+clip_id integer,
+FOREIGN KEY (clip_id) REFERENCES clips (id)
 );
 
 CREATE TABLE IF NOT EXISTS sites
