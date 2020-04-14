@@ -101,7 +101,7 @@ def main():
 
     # Extract the filename of the original movie
     flat_metadata["movie_filename"] = flat_metadata.apply(
-        lambda x: x["filename"].replace("_" + x["start_time"], ""), axis=1
+        lambda x: x["filename"].replace("_" + x["start_time"], "").replace(".mp4", ""), axis=1
     )
 
     # Get the end time of clips in relation to the original movie
