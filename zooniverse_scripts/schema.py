@@ -1,4 +1,13 @@
-sql = """CREATE TABLE IF NOT EXISTS movies
+sql = """CREATE TABLE IF NOT EXISTS sites
+(
+id integer PRIMARY KEY AUTOINCREMENT,
+name text NULL,
+coord_lat varchar(255) NULL,
+coord_lon varchar(255) NULL,
+protected varchar(255) NULL
+);
+
+CREATE TABLE IF NOT EXISTS movies
 (
 id integer PRIMARY KEY AUTOINCREMENT,
 filename text NULL,
@@ -6,7 +15,9 @@ created_on datetime NULL,
 duration datetime NULL,
 author text NULL,
 location text NULL,
-organisation text NULL
+organisation text NULL,
+site_id integer,
+FOREIGN KEY (site_id) REFERENCES sites (id)
 ); 
 
 CREATE TABLE IF NOT EXISTS clips
@@ -58,14 +69,5 @@ x_position integer,
 frame_number integer,
 clip_id integer,
 FOREIGN KEY (clip_id) REFERENCES clips (id)
-);
-
-CREATE TABLE IF NOT EXISTS sites
-(
-id integer PRIMARY KEY AUTOINCREMENT,
-name text NULL,
-coord_lat varchar(255) NULL,
-coord_lon varchar(255) NULL,
-protected varchar(255) NULL
 );
 """
