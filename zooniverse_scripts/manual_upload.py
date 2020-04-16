@@ -85,7 +85,7 @@ def main():
     ]
 
     # filter clip subjects
-    man_data = man_data[man_data["metadata"].str.contains(".mp4")].reset_index()
+    man_data = man_data[man_data["metadata"].str.contains(".mp4")].reset_index(drop=True).reset_index()
 
     # flatten the metadata information
     flat_metadata = pd.json_normalize(man_data.metadata.apply(json.loads))
