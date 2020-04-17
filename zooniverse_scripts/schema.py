@@ -16,6 +16,7 @@ duration datetime NULL,
 author text NULL,
 location text NULL,
 organisation text NULL,
+path text NULL,
 site_id integer,
 FOREIGN KEY (site_id) REFERENCES sites (id)
 ); 
