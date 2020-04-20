@@ -47,7 +47,7 @@ def get_site_id(row):
             f"SELECT id FROM sites WHERE coord_lat=={row['CentroidLat']} AND coord_lon=={row['CentroidLong']}",
         )[0][0]
     except:
-        site_id = 0
+        site_id = None
     return site_id
 
 
@@ -85,6 +85,8 @@ def add_movies(movies_file_id, db_path):
     movies_db = movies_df[
         ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id"]
     ]
+
+    print(len(movies_db))
 
     # Update movies table
     conn = create_connection(db_path)

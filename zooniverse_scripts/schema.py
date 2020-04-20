@@ -10,12 +10,13 @@ protected varchar(255) NULL
 CREATE TABLE IF NOT EXISTS movies
 (
 id integer PRIMARY KEY AUTOINCREMENT,
-filename text NULL,
+filename text NOT NULL,
 created_on datetime NULL,
 duration datetime NULL,
 author text NULL,
-path text NULL,
-site_id integer,
+site_id integer NULL,
+fpath text NULL,
+UNIQUE (filename),
 FOREIGN KEY (site_id) REFERENCES sites (id)
 ); 
 

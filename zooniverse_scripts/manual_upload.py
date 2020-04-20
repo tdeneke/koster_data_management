@@ -16,19 +16,18 @@ def get_id(conn, row):
 
     try:
         filename, ext = os.path.splitext(row["movie_filename"])
-        filename = filename.rsplit("_", 1)[0]
         gid = retrieve_query(
             conn, f"SELECT id FROM movies WHERE filename=='{filename}'"
         )[0][0]
     except:
-        gid = 0
+        gid = None
     return gid
 
 
 def test_table(table, db_table_name):
     try:
         # check that there are no id columns with a 0 value, which means that they were not matched
-        assert len(table[(table == 0).any(axis=1)]) == 0
+        assert len(table[table.isnull().any(axis=1)]) == 0
     except AssertionError:
         print(
             f"The table {db_table_name} has invalid entries, please ensure that all columns are non-zero"
@@ -168,7 +167,6 @@ def main():
     ]
 
     # test the validity of entries
-
     test_table(clips, "clips")
     test_table(subjects, "subjects")
 
