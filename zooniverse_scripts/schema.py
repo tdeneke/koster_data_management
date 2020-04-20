@@ -53,7 +53,7 @@ label text
 CREATE TABLE IF NOT EXISTS agg_annotations_clip
 (
 id integer PRIMARY KEY,
-species_id varchar(255),
+species_id integer,
 how_many integer,
 first_seen integer,
 clip_id integer,
