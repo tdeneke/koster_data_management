@@ -47,10 +47,10 @@ def main():
 
     project = auth_session(args.user, args.password)
 
-    # get the export classifications
+    # Get the export classifications
     export = project.get_export("classifications")
 
-    # save the response as pandas data frame
+    # Save the response as pandas data frame
     rawdata = pd.read_csv(
         io.StringIO(export.content.decode("utf-8")),
         usecols=[
@@ -119,7 +119,7 @@ def main():
     # Specify the type of columns
     flat_data["how_many"] = pd.to_numeric(flat_data["how_many"])
     flat_data["first_seen"] = pd.to_numeric(flat_data["first_seen"])
-
+    
     # Add the subject_ids to the dataframe
     class_data = pd.merge(
         flat_data,
@@ -141,7 +141,7 @@ def main():
         "classification_id"
     ].transform("count")
     class_data["class_prop"] = class_data.class_n / class_data.class_subject
-
+    
     # Select subjects where at least 80% of the users agree in their classification
     class_data = class_data[class_data.class_prop > 0.8]
 
@@ -153,34 +153,43 @@ def main():
     class_data = class_data.reset_index().rename(
         columns={"index": "id", "subject_ids": "subject_id"}
     )
+    
+    # create connection to db
+    conn = create_connection(args.db_path)
+    
     # Retrieve the id and clip_id from the subjects table
-
-    #print(retrieve_query(create_connection(args.db_path), "SELECT * FROM subjects"))
-
-    class_data["clip_id"] = class_data.apply(lambda x: get_id(create_connection(args.db_path), x), 1)
-
-    # add clip_id to the classifications dataframe
-    # class_data = pd.merge(
-    #    class_data, subjects, how="left", left_on="subject_id", right_on="id"
-    # )
-
-    # Retrieve the id and label from the species table
-    species = pd.DataFrame(
-        retrieve_query(create_connection(args.db_path), "SELECT * FROM species"),
-        columns=["species_id", "label"],
+    subjects_df = pd.read_sql_query("SELECT id, clip_id FROM subjects", conn)
+    subjects_df = subjects_df.rename(columns={"id": "subject_id"})
+     
+    # Reference with subjects table
+    class_data = pd.merge(
+        class_data, 
+        subjects_df, 
+        how = 'left', 
+        on = 'subject_id',
+        validate = 'many_to_one'
     )
+    
+    # Retrieve the id and label from the species table
+    speciesdf = pd.read_sql_query("SELECT id, label FROM species", conn)
+    speciesdf = speciesdf.rename(columns={"id": "species_id"})
 
-    species['label'] = species['label'].apply(lambda x: re.sub(r'[()\s]', '', x).upper(), 1)
-
+    # Match the label format of speciesdf to the class_data
+    speciesdf['label'] = speciesdf['label'].apply(lambda x: re.sub(r'[()\s]', '', x).upper(), 1)
+    
     # add species_id to the classifications dataframe
     class_data = pd.merge(
-        class_data, species, how="left", left_on="label", right_on="label"
+        class_data, 
+        speciesdf, 
+        how = "left", 
+        on = "label",
+        validate = 'many_to_one'
     )
 
+    # Select information to include in the agg_annotations table
     class_data = class_data[["id", "species_id", "how_many", "first_seen", "clip_id"]]
+    
     # Add to agg_annotations_clip table
-    conn = create_connection(args.db_path)
-
     try:
         insert_many(
             conn, [tuple(i) for i in class_data.values], "agg_annotations_clip", 5
