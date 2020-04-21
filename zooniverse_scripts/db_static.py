@@ -57,14 +57,11 @@ def add_movies(movies_file_id, db_path):
     movies_csv_resp = download_csv_from_google_drive(movies_file_id)
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
+    # Include server's path of the movie files
+    movies_df["Fpath"] = movies_df['FilenameCurrent']+".mov"
+    
     # Set up sites information
-    sites_df = (
-        movies_df[["SiteDecription", "CentroidLat", "CentroidLong"]]
-        .groupby(["CentroidLat", "CentroidLong"])
-        .min()
-        .reset_index()
-    )
-    sites_db = sites_df[["SiteDecription", "CentroidLat", "CentroidLong"]]
+    sites_db = movies_df[["SiteDecription", "CentroidLat", "CentroidLong"]].drop_duplicates("SiteDecription")
 
     # Update sites table
     conn = create_connection(db_path)
@@ -79,21 +76,28 @@ def add_movies(movies_file_id, db_path):
 
     conn.commit()
 
-    # Reference with sites table
-
-    movies_df["Site_id"] = movies_df.apply(lambda x: get_site_id(x), 1)
-    movies_db = movies_df[
-        ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id"]
-    ]
-
-    print(len(movies_db))
-
     # Update movies table
     conn = create_connection(db_path)
+    
+    # Reference with sites table
+    sites_df = pd.read_sql_query("SELECT id, name FROM sites", conn)
+    sites_df = sites_df.rename(columns={"id": "Site_id"})
+    
+    movies_df = pd.merge(movies_df,
+                         sites_df,
+                         how='left',
+                         left_on= 'SiteDecription',
+                         right_on= 'name')
+    
+    # Select only those fields of interest
+    movies_db = movies_df[
+        ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id", "Fpath"]
+    ]
 
+    #print(movies_db.tail)
     try:
         insert_many(
-            conn, [(None,) + tuple(i) + (None,) for i in movies_db.values], "movies", 7
+            conn, [(None,) + tuple(i) for i in movies_db.values], "movies", 7
         )
     except sqlite3.Error as e:
         print(e)
