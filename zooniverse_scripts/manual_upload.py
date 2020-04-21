@@ -57,7 +57,7 @@ def main():
     project = auth_session(args.user, args.password)
 
     # Specify the last and first dates when subjects were manually uploaded
-    last_date = "2020-01-10 00:00:00 UTC"
+    last_date = '2020-02-03 20:30:00 UTC'
     first_date = "2019-11-17 00:00:00 UTC"
 
     # get the export subjects
@@ -83,10 +83,10 @@ def main():
         (last_date >= rawdata.created_at) & (first_date <= rawdata.created_at)
     ]
 
-    # filter clip subjects
+    # filter clip subjects and reset index
     man_data = man_data[man_data["metadata"].str.contains(".mp4")].reset_index(drop=True).reset_index()
-
-    # flatten the metadata information
+    
+    # Flatten the metadata information
     flat_metadata = pd.json_normalize(man_data.metadata.apply(json.loads))
 
     # Select the filename of the clips
@@ -99,10 +99,13 @@ def main():
     )
 
     # Extract the filename of the original movie
-    flat_metadata["movie_filename"] = flat_metadata.apply(
+    flat_metadata["movie_filename_ext"] = flat_metadata.apply(
         lambda x: x["filename"].replace("_" + x["start_time"], ""), axis=1
     )
 
+    # Remove the extension of the filename of the original movie
+    flat_metadata["movie_filename"] = flat_metadata["movie_filename_ext"].str.replace(".mp4", "")
+    
     # Get the end time of clips in relation to the original movie
     flat_metadata["start_time"] = pd.to_numeric(
         flat_metadata["start_time"], downcast="signed"
@@ -117,13 +120,23 @@ def main():
     # create connection to db
     conn = create_connection(args.db_path)
 
-    # Retrieve the id and filename from the movies table
-    flat_metadata["movie_id"] = flat_metadata.apply(lambda x: get_id(conn, x), 1)
-
-    # add movie_id to the flat metadata
-    # clip_metadata = pd.merge(flat_metadata, movies, how = 'left',
-    #                         left_on='movie_filename', right_on='filename')
-
+    # Query id and filenames from the movies table
+    movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
+    movies_df = movies_df.rename(columns={"id": "movie_id",
+                                         "filename": "movie_filename"})
+    
+    # Deal with special characters
+    movies_df["movie_filename"] = movies_df["movie_filename"].str.normalize('NFD')
+    flat_metadata["movie_filename"] = flat_metadata["movie_filename"].str.normalize('NFD')
+    
+    # Reference with movies table
+    flat_metadata = pd.merge(flat_metadata,
+                             movies_df,
+                             how = 'left',
+                             on = 'movie_filename',
+                             validate = 'many_to_one'
+                            )
+    
     # Drop metadata column and define clip creation date as time uploaded to Zooniverse
     man_data = man_data.drop(columns="metadata")
 
@@ -165,13 +178,12 @@ def main():
             "clip_id",
         ]
     ]
-
+    
     # test the validity of entries
     test_table(clips, "clips")
     test_table(subjects, "subjects")
 
     # update the tables
-
     try:
         insert_many(conn, [tuple(i) for i in clips.values], "clips", 6)
         insert_many(conn, [tuple(i) for i in subjects.values], "subjects", 8)
