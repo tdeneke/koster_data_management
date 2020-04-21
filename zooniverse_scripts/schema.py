@@ -23,10 +23,10 @@ FOREIGN KEY (site_id) REFERENCES sites (id)
 CREATE TABLE IF NOT EXISTS clips
 (
 id integer PRIMARY KEY,
+clipped_date datetime NULL,
 filename text NULL,
 start_time datetime,
 end_time datetime,
-clipped_date datetime NULL,
 movie_id integer,
 FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
@@ -47,7 +47,8 @@ FOREIGN KEY (clip_id) REFERENCES clips (id)
 CREATE TABLE IF NOT EXISTS species
 (
 id integer PRIMARY KEY AUTOINCREMENT,
-label text
+label text NOT NULL,
+UNIQUE (label)
 );
 
 CREATE TABLE IF NOT EXISTS agg_annotations_clip

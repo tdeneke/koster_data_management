@@ -93,8 +93,7 @@ def add_movies(movies_file_id, db_path):
     movies_db = movies_df[
         ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id", "Fpath"]
     ]
-
-    #print(movies_db.tail)
+    
     try:
         insert_many(
             conn, [(None,) + tuple(i) for i in movies_db.values], "movies", 7
