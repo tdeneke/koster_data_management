@@ -1,7 +1,6 @@
-import os, csv, json, sys
+import os, csv, json, sys, io
 import operator, argparse
 import requests
-import io
 import pandas as pd
 import sqlite3
 from datetime import datetime
@@ -58,10 +57,12 @@ def add_movies(movies_file_id, db_path):
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
     # Include server's path of the movie files
-    movies_df["Fpath"] = movies_df['FilenameCurrent']+".mov"
-    
+    movies_df["Fpath"] = movies_df["FilenameCurrent"] + ".mov"
+
     # Set up sites information
-    sites_db = movies_df[["SiteDecription", "CentroidLat", "CentroidLong"]].drop_duplicates("SiteDecription")
+    sites_db = movies_df[
+        ["SiteDecription", "CentroidLat", "CentroidLong"]
+    ].drop_duplicates("SiteDecription")
 
     # Update sites table
     conn = create_connection(db_path)
@@ -78,26 +79,22 @@ def add_movies(movies_file_id, db_path):
 
     # Update movies table
     conn = create_connection(db_path)
-    
+
     # Reference with sites table
     sites_df = pd.read_sql_query("SELECT id, name FROM sites", conn)
     sites_df = sites_df.rename(columns={"id": "Site_id"})
-    
-    movies_df = pd.merge(movies_df,
-                         sites_df,
-                         how='left',
-                         left_on= 'SiteDecription',
-                         right_on= 'name')
-    
+
+    movies_df = pd.merge(
+        movies_df, sites_df, how="left", left_on="SiteDecription", right_on="name"
+    )
+
     # Select only those fields of interest
     movies_db = movies_df[
         ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id", "Fpath"]
     ]
-    
+
     try:
-        insert_many(
-            conn, [(None,) + tuple(i) for i in movies_db.values], "movies", 7
-        )
+        insert_many(conn, [(None,) + tuple(i) for i in movies_db.values], "movies", 7)
     except sqlite3.Error as e:
         print(e)
 

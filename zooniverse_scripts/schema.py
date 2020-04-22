@@ -22,7 +22,7 @@ FOREIGN KEY (site_id) REFERENCES sites (id)
 
 CREATE TABLE IF NOT EXISTS clips
 (
-id integer PRIMARY KEY,
+id integer PRIMARY KEY AUTOINCREMENT,
 clipped_date datetime NULL,
 filename text NULL,
 start_time datetime,
