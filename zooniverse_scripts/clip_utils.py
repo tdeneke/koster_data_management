@@ -1,7 +1,8 @@
-import argparse
+import argparse, re
 from zooniverse_setup import *
 from db_setup import *
 import pandas as pd
+import numpy as np
 
 
 def get_id(conn, row):
@@ -32,62 +33,34 @@ def get_species_frames(species_name, conn):
     ).values[0][0]
 
     # Get clips for species from db
-    clips = [
-        i[0]
-        for i in pd.read_sql_query(
-            f"SELECT clip_id FROM agg_annotations_clip WHERE species_id={species_id}",
-            conn,
-        ).values
-    ]
-
-    # Get filenames of clips
-    filenames = [
-        i[0]
-        for i in pd.read_sql_query(
-            f"SELECT filename FROM clips WHERE id IN {tuple(clips)}", conn
-        ).values
-    ]
-
-    return filenames
-
-
-def wf2_upload(filenames, workflow_id, workflow_version):
-
-    #Establish connection to Zooniverse
-
-    #Create and upload subject sets to Zooniverse
-
-    #Link subject sets to specific workflow
-    return None
-
-
-def main():
-
-    "Handles argument parsing and launches the correct function."
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--user", "-u", help="Zooniverse username", type=str, required=True
+    frames_df = pd.read_sql_query(
+        f"SELECT clip_id, first_seen FROM agg_annotations_clip WHERE species_id={species_id}",
+        conn,
     )
-    parser.add_argument(
-        "--password", "-p", help="Zooniverse password", type=str, required=True
+
+    frames_df["species_id"] = species_id
+
+    # Get ids of movies
+    frames_df["movie_id"], frames_df["filename"] = list(
+        zip(
+            *pd.read_sql_query(
+                f"SELECT movie_id, filename FROM clips WHERE id IN {tuple(frames_df['clip_id'].values)}",
+                conn,
+            ).values
+        )
     )
-    parser.add_argument(
-        "-db",
-        "--db_path",
-        type=str,
-        help="the absolute path to the database file",
-        default=r"koster_lab.db",
-        required=True,
+
+    frames_df["movie_filename"] = pd.read_sql_query(
+        f"SELECT fpath FROM movies WHERE id IN {tuple(frames_df['movie_id'].values)}",
+        conn,
     )
-    args = parser.parse_args()
-    conn = create_connection(args.db_path)
+    frames_df["movie_frame"] = np.round(
+        frames_df["first_seen"]
+        + frames_df["filename"].apply(lambda x: int(re.findall(r"(?<=_)\d+", x)[0]))
+    )
 
-    print(get_species_frames("Fish (any species)", conn))
+    frames_df.drop(
+        ["movie_id", "clip_id", "filename", "first_seen"], inplace=True, axis=1
+    )
 
-    # Upload clips to Zooniverse workflow
-    # need help here
-
-
-if __name__ == "__main__":
-    main()
-
+    return frames_df
