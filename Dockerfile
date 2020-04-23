@@ -13,5 +13,4 @@ RUN git clone https://github.com/ocean-data-factory-sweden/koster_lab_developmen
 WORKDIR /usr/src/app/koster_lab_development/zooniverse_scripts
 
 RUN pip3 install -r requirements.txt
-#EXPOSE 5000
-#CMD [“python3”,”app.py”]
+
