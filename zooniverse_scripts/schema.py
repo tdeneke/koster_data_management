@@ -65,10 +65,13 @@ FOREIGN KEY (species_id) REFERENCES species (id)
 CREATE TABLE IF NOT EXISTS agg_annotations_frame
 (
 id integer PRIMARY KEY,
-species_id varchar(255),
+species_id integer,
 x_position integer,
 frame_number integer,
-clip_id integer,
-FOREIGN KEY (clip_id) REFERENCES clips (id)
+expected_species integer,
+movie_id integer,
+FOREIGN KEY (species_id) REFERENCES species (id),
+FOREIGN KEY (clip_id) REFERENCES clips (id),
+FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 """
