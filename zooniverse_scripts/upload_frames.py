@@ -3,6 +3,9 @@ from zooniverse_setup import *
 from db_setup import *
 import pandas as pd
 from clip_utils import *
+from mydia import Videos
+from PIL import Image
+import cv2
 
 
 def get_species_frames(species_name, conn):
@@ -14,7 +17,7 @@ def get_species_frames(species_name, conn):
 
     # Get clips for species from db
     frames_df = pd.read_sql_query(
-        f"SELECT clip_id, first_seen, start_time, end_time FROM agg_annotations_clip WHERE species_id={species_id}",
+        f"SELECT clip_id, first_seen, start_time, end_time FROM agg_annotations_clip LEFT JOIN clips ON agg_annotations_clip.clip_id = clips.id WHERE agg_annotations_clip.species_id={species_id}",
         conn,
     )
 
@@ -40,10 +43,8 @@ def get_species_frames(species_name, conn):
     )
     
     # Set the filename of the frames to extract
-    frames_df["movie_frame"] = np.round(
-        frames_df["first_seen_movie"]
-        + frames_df["filename"].apply(lambda x: int(re.findall(r"(?<=_)\d+", x)[0]))
-    )
+    frames_df["movie_frame"] = frames_df["filename"].apply(lambda x: int(re.findall(r"(?<=_)\d+", x)[0]))
+    
 
     frames_df.drop(
         ["movie_id", "clip_id", "filename", "first_seen"], inplace=True, axis=1
@@ -53,8 +54,31 @@ def get_species_frames(species_name, conn):
 
 
 #Function to extract up to three frames from movies after the first time seen
-def get_fps(df, frames_path):
+def get_fps(video_file):
+    return int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
 
+def save_frames(video, start_frame, fps, n_frames):
+    
+    for i in range(n_frames):
+        try:
+            frame = video[:, start_frame + i*fps, ...][0]
+        except:
+            pass
+        Image.fromarray(frame).save(f"your_file.jpeg")
+
+    return None
+
+def extract_frames(df, frames_path, n_frames=3):
+    # get fps for each video
+    df['fps'] = df['filename'].apply(get_fps, 1)
+    df['new_frame'] = df['first_seen'] * df['fps'] + df['movie_frame']
+    
+    # read all videos
+    reader = Videos()
+    videos = pd.Series(reader.read(df['filename'].values, workers=8))
+    saved_images = (save_frames(vid[i], df['new_frame'].iloc[i], df['fps'].iloc[i]) for i in range(len(videos)))
+
+    return None
     
 
 def main():
@@ -97,16 +121,21 @@ def main():
     # Get all movie_files and frame_numbers for species
     annotation_df = get_species_frames(args.species, conn)
 
+    # Get species name
+    species_id = pd.read_sql_query(
+        f"SELECT id FROM species WHERE label='{args.species}'", conn
+    ).values[0][0]
+
     # Get info of frames already classified
     uploaded_frames_df = pd.read_sql_query(
-        f"SELECT movie_id, frame_number, expected_species FROM agg_annotations_frame WHERE label='{species_name}'", conn
+        f"SELECT movie_id, frame_number, expected_species FROM agg_annotations_frame WHERE label='{species_id}'", conn
     ).values[0][0]
     
     # Exclude frames that have already been uploaded
     annotation_df = annotation_df[
-        ~(annotation_df.movie_id = uploaded_frames_df.movie_id) &
-        ~(annotation_df.frame_number = uploaded_frames_df.frame_number)&
-        ~(annotation_df.expected_species = uploaded_frames_df.expected_species)
+        ~(annotation_df.movie_id == uploaded_frames_df.movie_id) &
+        ~(annotation_df.frame_number == uploaded_frames_df.frame_number) &
+        ~(annotation_df.expected_species == uploaded_frames_df.expected_species)
     ]
     
     # Create the folder to store the frames if not exist
@@ -114,7 +143,7 @@ def main():
         os.mkdir(args.frames_path)
 
     # Extract the frames and save them
-    #get_fps(annotation_df,args.frames_path)
+    extract_frames(annotation_df, args.frames_path,3)
     
     # Save the manuscript with metadata information about the frames
     manuscript = annotation_df[
