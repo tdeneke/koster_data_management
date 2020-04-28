@@ -71,7 +71,6 @@ frame_number integer,
 expected_species integer,
 movie_id integer,
 FOREIGN KEY (species_id) REFERENCES species (id),
-FOREIGN KEY (clip_id) REFERENCES clips (id),
 FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 """

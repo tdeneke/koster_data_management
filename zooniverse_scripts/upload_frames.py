@@ -1,4 +1,4 @@
-import argparse
+import argparse, os
 from zooniverse_setup import *
 from db_setup import *
 import pandas as pd
@@ -47,7 +47,7 @@ def get_species_frames(species_name, conn):
     
 
     frames_df.drop(
-        ["movie_id", "clip_id", "filename", "first_seen"], inplace=True, axis=1
+        ["clip_id"], inplace=True, axis=1
     )
 
     return frames_df
@@ -75,9 +75,9 @@ def extract_frames(df, frames_path, n_frames=3):
     
     # read all videos
     reader = Videos()
-    videos = pd.Series(reader.read(df['filename'].values, workers=8))
+    videos = pd.Series(reader.read(df['filename'].tolist(), workers=8))
     saved_images = (save_frames(vid[i], df['new_frame'].iloc[i], df['fps'].iloc[i]) for i in range(len(videos)))
-
+    print("Frames extracted successfully")
     return None
     
 
@@ -128,27 +128,30 @@ def main():
 
     # Get info of frames already classified
     uploaded_frames_df = pd.read_sql_query(
-        f"SELECT movie_id, frame_number, expected_species FROM agg_annotations_frame WHERE label='{species_id}'", conn
-    ).values[0][0]
+        f"SELECT movie_id, frame_number, expected_species FROM agg_annotations_frame WHERE species_id='{species_id}'", conn
+    )
+
+    if len(uploaded_frames_df) > 0:
     
-    # Exclude frames that have already been uploaded
-    annotation_df = annotation_df[
-        ~(annotation_df.movie_id == uploaded_frames_df.movie_id) &
-        ~(annotation_df.frame_number == uploaded_frames_df.frame_number) &
-        ~(annotation_df.expected_species == uploaded_frames_df.expected_species)
-    ]
+        # Exclude frames that have already been uploaded
+        annotation_df = annotation_df[
+            ~(annotation_df['movie_id'] == uploaded_frames_df['movie_id']) &
+            ~(annotation_df['movie_frame'] == uploaded_frames_df['frame_number']) &
+            ~(annotation_df['expected_species'] == uploaded_frames_df['expected_species'])
+        ]
     
     # Create the folder to store the frames if not exist
     if not os.path.exists(args.frames_path):
         os.mkdir(args.frames_path)
 
     # Extract the frames and save them
-    extract_frames(annotation_df, args.frames_path,3)
+    extract_frames(annotation_df, args.frames_path, 3)
     
     # Save the manuscript with metadata information about the frames
     manuscript = annotation_df[
-        ["movie_frame", "movie_id", "frame_number", "expected_species"]
+        ["movie_frame", "movie_id", "expected_species"]
     ]
+
     manuscript.to_csv(args.frames_path+"manuscript.csv",index=False)
     
     # Upload frames to Zooniverse (with movie metadata)
