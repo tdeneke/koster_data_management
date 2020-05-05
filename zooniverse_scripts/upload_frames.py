@@ -40,7 +40,7 @@ def get_species_frames(species_name, conn):
 
     # Identify the seconds in the original movie when the species appears
     frames_df["fps"] = frames_df["filename"].apply(get_fps, 1)
-    frames_df["first_seen_movie"] = frames_df["start_time"] / frames_df["fps"]  + frames_df["first_seen"]
+    frames_df["first_seen_movie"] = frames_df["start_time"] // frames_df["fps"]  + frames_df["first_seen"]
 
     # Get the filepath of the original movie
     frames_df["movie_filename"] = pd.read_sql_query(
@@ -71,12 +71,12 @@ def extract_frames(df, frames_path, n_frames=3):
                     + "/"
                     + m_names[i]
                     + "_frame_"
-                    + (df['first_seen_movie'] + j * df['fps']).astype(str) + ".jpeg" for j in range(n_frames)]
+                    + ((df['first_seen_movie'] + j) * df['fps']).astype(str) + ".jpeg" for j in range(n_frames)]
 
     for i in range(len(videos)):
         for j in range(n_frames):
             try:
-                frame = videos[:, df["first_seen_movie"].iloc[i] + j * df["fps"].iloc[i], ...][
+                frame = videos[:, (df["first_seen_movie"].iloc[i] + j) * df["fps"].iloc[i], ...][
                     i
                 ]
                 # save image in filepath
