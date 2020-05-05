@@ -23,4 +23,3 @@ def clips_summary(conn):
     clips["species_name"] = clips["species_id"].apply(lambda x: get_id(conn, x), 1)
 
     return clips.groupby("species_name").agg({"species_id": "count", "how_many": "sum"})
-
