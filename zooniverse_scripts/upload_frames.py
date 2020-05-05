@@ -6,7 +6,11 @@ from clip_utils import *
 from mydia import Videos
 from PIL import Image
 import cv2
+from datetime import date
 
+# Function to extract up to three frames from movies after the first time seen
+def get_fps(video_file):
+    return int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
 
 def get_species_frames(species_name, conn):
 
@@ -24,9 +28,6 @@ def get_species_frames(species_name, conn):
 
     frames_df["expected_species"] = species_id
 
-    # Identify the seconds in the original movie when the species appears
-    frames_df["first_seen_movie"] = frames_df["start_time"] + frames_df["first_seen"]
-
     # Get ids of movies
     frames_df["movie_id"], frames_df["filename"] = list(
         zip(
@@ -36,6 +37,10 @@ def get_species_frames(species_name, conn):
             ).values
         )
     )
+
+    # Identify the seconds in the original movie when the species appears
+    frames_df["fps"] = frames_df["filename"].apply(get_fps, 1)
+    frames_df["first_seen_movie"] = frames_df["start_time"] / frames_df["fps"]  + frames_df["first_seen"]
 
     # Get the filepath of the original movie
     frames_df["movie_filename"] = pd.read_sql_query(
@@ -48,46 +53,39 @@ def get_species_frames(species_name, conn):
         lambda x: int(re.findall(r"(?<=_)\d+", x)[0])
     )
 
+    print(frames_df.head())
+
     frames_df.drop(["clip_id"], inplace=True, axis=1)
 
     return frames_df
 
 
-# Function to extract up to three frames from movies after the first time seen
-def get_fps(video_file):
-    return int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
-
-
 def extract_frames(df, frames_path, n_frames=3):
-    # get fps for each video
-    df["fps"] = df["filename"].apply(get_fps, 1)
-    df["new_frame"] = df["first_seen"] * df["fps"] + df["movie_frame"]
-
     # read all videos
     reader = Videos()
-    videos = pd.Series(reader.read(df["filename"].tolist(), workers=8))
+    videos = reader.read(df["filename"].tolist(), workers=8)
     m_names = df["movie_filename"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
+    f_paths = [frames_path
+                    + "/"
+                    + m_names[i]
+                    + "_frame_"
+                    + (df['first_seen_movie'] + j * df['fps']).astype(str) + ".jpeg" for j in range(n_frames)]
 
     for i in range(len(videos)):
         for j in range(n_frames):
             try:
-                frame = videos[:, df["new_frame"].iloc[i] + j * df["fps"].iloc[i], ...][
+                frame = videos[:, df["first_seen_movie"].iloc[i] + j * df["fps"].iloc[i], ...][
                     i
                 ]
-                Image.fromarray(frame).save(
-                    f"{frames_path}"
-                    + "/"
-                    + m_names[i]
-                    + "_frame_"
-                    + f"{df['new_frame'].iloc[i] + j * df['fps'].iloc[i]}.jpeg"
-                )
+                # save image in filepath
+                Image.fromarray(frame).save(f"{f_paths[i][j]}")
             except:
                 pass
 
     print("Frames extracted successfully")
-    return None
+    return f_paths
 
 
 def main():
@@ -158,13 +156,13 @@ def main():
         os.mkdir(args.frames_path)
 
     # Extract the frames and save them
-    extract_frames(annotation_df, args.frames_path, 3)
+    f_paths = extract_frames(annotation_df, args.frames_path, 3)
 
     # Create a subjest in Zooniverse where the frames will be uploaded
     subject_set = SubjectSet()
 
     subject_set.links.project = koster_project
-    subject_set.display_name = species + date.today().strftime("_%d_%m_%Y")
+    subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y")
 
     subject_set.save()
 
@@ -173,10 +171,14 @@ def main():
         ["movie_frame", "movie_id", "expected_species"]
     ].to_dict("r")
 
+    annotation_df['frame_paths'] = pd.Series(f_paths)
+
+    annotation_df.drop([i if i not in ['metadata', 'frame_paths']], 1)
+
     # Upload frames to Zooniverse (with metadata)
     new_subjects = []
 
-    for filename, metadata in annotation_df.items():
+    for filename, metadata in annotation_df.values:
         subject = Subject()
 
         subject.links.project = tutorial_project
