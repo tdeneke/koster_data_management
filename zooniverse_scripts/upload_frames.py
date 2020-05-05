@@ -147,15 +147,35 @@ def main():
     # Extract the frames and save them
     extract_frames(annotation_df, args.frames_path, 3)
     
-    # Save the manuscript with metadata information about the frames
-    manuscript = annotation_df[
-        ["movie_frame", "movie_id", "expected_species"]
-    ]
+    # Create a subjest in Zooniverse where the frames will be uploaded
+    subject_set = SubjectSet()
 
-    manuscript.to_csv(args.frames_path+"manuscript.csv",index=False)
+    subject_set.links.project = koster_project
+    subject_set.display_name = species + date.today().strftime("_%d_%m_%Y")
+
+    subject_set.save()
     
-    # Upload frames to Zooniverse (with movie metadata)
-    # TO BE FILLED
+    # Save the columns with information about the frames as metadata
+    annotation_df['metadata'] = annotation_df[
+        ["movie_frame", "movie_id", "expected_species"]
+    ].to_dict('r')
+    
+    # Upload frames to Zooniverse (with metadata)
+    new_subjects = []
+    
+    for filename, metadata in annotation_df.items():
+        subject = Subject()
+
+        subject.links.project = tutorial_project
+        subject.add_location(filename)
+
+        subject.metadata.update(metadata)
+
+        subject.save()
+        new_subjects.append(subject)
+    
+    # Upload frames
+    subject_set.add(new_subjects)
 
 
 if __name__ == "__main__":
