@@ -5,6 +5,8 @@ from datetime import datetime
 from panoptes_client import Project, Panoptes
 from db_setup import *
 from zooniverse_setup import *
+from ast import literal_eval
+from collections import OrderedDict
 
 # Specify the workflow of interest and its version
 workflow_2 = 12852
@@ -92,7 +94,7 @@ def main():
                 "h": int(i[1][0]["height"]),
             }
         )
-        for i in df.annotation
+        for i in w2_data.annotation
         if i is not None
     ]
     
