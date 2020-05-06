@@ -201,6 +201,8 @@ def main():
         print(e)
 
     conn.commit()
+    
+    print("Updated subjects from Zooniverse")
 
 
 if __name__ == "__main__":
