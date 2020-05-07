@@ -67,51 +67,51 @@ def main():
     # Drop worflow columns
     w1_data = w1_data.drop(columns=["workflow_id", "workflow_version"])
 
-    # Create empty df
-    flat_data = pd.DataFrame(
-        columns=["classification_id", "label", "first_seen", "how_many"]
-    )
+    # Create an empty list 
+    rows_list = []
 
+    # loop through each classification submitted by the users
     for index, row in w1_data.iterrows():
         # load annotations as json format
         annotations = json.loads(row["annotations"])
 
-        # select the information from the species identification task
-        for task_i in annotations:
-            try:
-                if task_i["task"] == "T4":
-                    # select each species annotation and flatten the relevant answers
-                    for species in task_i["value"]:
-                        try:
-                            # loop through the answers and add them to the row
-                            answers = species["answers"]
-                            if len(answers) == 0:
-                                f_time = ""
-                                inds = ""
-                            else:
-                                for k in answers.keys():
-                                    try:
-                                        if "FIRSTTIME" in k:
-                                            f_time = answers[k].replace("S", "")
-                                        if "INDIVIDUAL" in k:
-                                            inds = answers[k]
-                                    except KeyError:
-                                        continue
+        # Select the information from the species identification task
+        for ann_i in annotations:
+            if ann_i["task"] == "T4":
+                
+                # Select each species annotation and flatten the relevant answers
+                for value_i in ann_i["value"]:
+                    choice_i = {}
+                    # If choice = 'nothing here', set follow up answers to blank
+                    if value_i["choice"] == "NOTHINGHERE":
+                        f_time = ""
+                        inds = ""
+                    # If choice = species, flatten the follow up answers
+                    else:
+                        answers = value_i["answers"]
+                        for k in answers.keys():
+                            if "FIRSTTIME" in k:
+                                f_time = answers[k].replace("S", "")
+                            if "INDIVIDUAL" in k:
+                                inds = answers[k]
+                                
 
-                            # include a new row with the species of choice, class and subject ids
-                            flat_data = flat_data.append(
-                                {
-                                    "classification_id": row["classification_id"],
-                                    "label": species["choice"],
-                                    "first_seen": f_time,
-                                    "how_many": inds,
-                                },
-                                ignore_index=True,
-                            )
-                        except KeyError:
-                            continue
-            except KeyError:
-                continue
+                    # Create a new row with the species of choice, class and subject ids
+                    choice_i.update(
+                        {
+                            "classification_id": row["classification_id"],
+                            "label": value_i["choice"],
+                            "first_seen": f_time,
+                            "how_many": inds,
+                        }
+                    ) 
+                    
+                    # Include the new row in the list
+                    rows_list.append(choice_i)
+
+    #Create a data frame from the list of dictionaries 
+    flat_data = pd.DataFrame(rows_list, 
+                             columns=["classification_id", "label", "first_seen", "how_many"])
 
     # Specify the type of columns
     flat_data["how_many"] = pd.to_numeric(flat_data["how_many"])
