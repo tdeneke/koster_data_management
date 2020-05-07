@@ -1,11 +1,10 @@
 import os, csv, json, sys, io
-import operator, argparse
-import requests
+import operator, argparse, requests
 import pandas as pd
 import sqlite3
+import db_utils
 from datetime import datetime
-from db_setup import *
-from zooniverse_setup import *
+from zooniverse_setup import auth_session
 
 
 def download_csv_from_google_drive(id):
@@ -35,19 +34,10 @@ def get_confirm_token(response):
     return None
 
 
-def get_site_id(row):
-
-    # Currently we discard sites that have no lat or lon coordinates, since site descriptions are not unique
-    # it becomes difficult to match this information otherwise
-
-    try:
-        site_id = retrieve_query(
-            conn,
-            f"SELECT id FROM sites WHERE coord_lat=={row['CentroidLat']} AND coord_lon=={row['CentroidLong']}",
-        )[0][0]
-    except:
-        site_id = None
-    return site_id
+# Note for follow-up:
+# Currently we discard sites that have no lat or lon coordinates, since site descriptions are not unique
+# it becomes difficult to match this information otherwise
+# {'coord_lat': '=CentroidLat', 'coord_lon': '=CentroidLong'}
 
 
 def add_movies(movies_file_id, db_path):
@@ -64,21 +54,13 @@ def add_movies(movies_file_id, db_path):
         ["SiteDecription", "CentroidLat", "CentroidLong"]
     ].drop_duplicates("SiteDecription")
 
-    # Update sites table
-    conn = create_connection(db_path)
-
-    try:
-        # An additional None is added at the front to account for the autoincrement id column
-        insert_many(
-            conn, [(None,) + tuple(i) + (None,) for i in sites_db.values], "sites", 5
-        )
-    except sqlite3.Error as e:
-        print(e)
-
-    conn.commit()
+    # Add values to sites table
+    db_utils.add_to_table(
+        db_path, "sites", [(None,) + tuple(i) + (None,) for i in sites_db.values], 5
+    )
 
     # Update movies table
-    conn = create_connection(db_path)
+    conn = db_utils.create_connection(db_path)
 
     # Reference with sites table
     sites_df = pd.read_sql_query("SELECT id, name FROM sites", conn)
@@ -93,14 +75,10 @@ def add_movies(movies_file_id, db_path):
         ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id", "Fpath"]
     ]
 
-    try:
-        insert_many(conn, [(None,) + tuple(i) for i in movies_db.values], "movies", 7)
-    except sqlite3.Error as e:
-        print(e)
-
-    conn.commit()
-
-    print("Updated sites and movies")
+    # Add values to movies table
+    db_utils.add_to_table(
+        db_path, "movies", [(None,) + tuple(i) for i in movies_db.values], 7
+    )
 
 
 def add_species(species_file_id, db_path):
@@ -109,23 +87,10 @@ def add_species(species_file_id, db_path):
     species_csv_resp = download_csv_from_google_drive(species_file_id)
     species_df = pd.read_csv(io.StringIO(species_csv_resp.content.decode("utf-8")))
 
-    # Update movies table
-    conn = create_connection(db_path)
-
-    try:
-        # An additional None is added at the front to account for the autoincrement id column
-        insert_many(
-            conn,
-            [(None,) + tuple([i]) for i in species_df["Name"].values],
-            "species",
-            2,
-        )
-    except sqlite3.Error as e:
-        print(e)
-
-    conn.commit()
-
-    print("Updated species")
+    # Add values to species table
+    db_utils.add_to_table(
+        db_path, "species", [(None,) + tuple([i]) for i in species_df["Name"].values], 2
+    )
 
 
 def main():

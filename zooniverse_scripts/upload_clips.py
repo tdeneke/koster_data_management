@@ -1,10 +1,8 @@
 import os, math, csv
-import subprocess
-import argparse
-import sqlite3
+import subprocess, argparse
+import sqlite3, db_utils
 import numpy as np
-from db_setup import *
-from zooniverse_setup import *
+from zooniverse_setup import auth_session
 from datetime import date
 from panoptes_client import (
     SubjectSet,
@@ -62,7 +60,7 @@ def main():
     args = parser.parse_args()
 
     # Connect to koster_db
-    conn = create_connection(args.db_path)
+    conn = db_utils.create_connection(args.db_path)
 
     # video_filename = str(os.path.basename(args.video_path))
     # video_duration = get_length(args.video_path)
@@ -70,10 +68,10 @@ def main():
 
     # Choose a movie in the db to clip
     try:
-        movie_id = retrieve_query(
+        movie_id = db_utils.retrieve_query(
             conn, "SELECT id FROM movies EXCEPT SELECT movie_id from clips"
         )[0][0]
-        v_filename = retrieve_query(
+        v_filename = db_utils.retrieve_query(
             conn, f"SELECT filename FROM movies WHERE id=={movie_id}"
         )[0][0]
     except:
@@ -204,14 +202,14 @@ def main():
 
     # test the validity of table entries
 
-    test_table(clips, "clips")
-    test_table(subjects, "subjects")
+    db_utils.test_table(clips, "clips")
+    db_utils.test_table(subjects, "subjects")
 
     # update the tables (check these values)
 
     try:
-        insert_many(conn, [tuple(i) for i in clips.values], "clips", 6)
-        insert_many(conn, [tuple(i) for i in subjects.values], "subjects", 8)
+        db_utils.insert_many(conn, [tuple(i) for i in clips.values], "clips", 6)
+        db_utils.insert_many(conn, [tuple(i) for i in subjects.values], "subjects", 8)
     except sqlite3.Error as e:
         print(e)
 

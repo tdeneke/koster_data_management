@@ -1,20 +1,7 @@
 import argparse, re
-from zooniverse_setup import *
-from db_setup import *
+import db_utils
 import pandas as pd
 import numpy as np
-
-
-def get_id(conn, row):
-
-    # Currently we discard sites that have no lat or lon coordinates, since site descriptions are not unique
-    # it becomes difficult to match this information otherwise
-
-    try:
-        gid = retrieve_query(conn, f"SELECT label FROM species WHERE id=='{row}'")[0][0]
-    except:
-        gid = None
-    return gid
 
 
 def clips_summary(conn):

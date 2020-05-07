@@ -64,11 +64,14 @@ FOREIGN KEY (species_id) REFERENCES species (id)
 
 CREATE TABLE IF NOT EXISTS agg_annotations_frame
 (
-id integer PRIMARY KEY,
-species_id integer,
-x_position integer,
-frame_number integer,
-expected_species integer,
+id integer PRIMARY KEY AUTOINCREMENT,
+species_id integer NULL,
+x_position integer NULL,
+y_position integer NULL,
+width integer NULL,
+height integer NULL,
+frame_number integer NULL,
+expected_species integer NULL,
 movie_id integer,
 FOREIGN KEY (species_id) REFERENCES species (id),
 FOREIGN KEY (movie_id) REFERENCES movies (id)

@@ -1,25 +1,13 @@
 import io, os, csv, json, sys, re
 import operator, argparse
-import requests
+import requests, db_utils
 import pandas as pd
 from datetime import datetime
-from db_setup import *
-from zooniverse_setup import *
+from zooniverse_setup import auth_session
 
 # Specify the workflow of interest and its version
 workflow_1 = 11767
 workflow_1_version = 227
-
-
-def get_id(conn, row):
-
-    try:
-        gid = retrieve_query(
-            conn, f"SELECT clip_id FROM subjects WHERE id=={int(row['subject_id'])}",
-        )[0][0]
-    except:
-        gid = None
-    return gid
 
 
 def main():
@@ -67,7 +55,7 @@ def main():
     # Drop worflow columns
     w1_data = w1_data.drop(columns=["workflow_id", "workflow_version"])
 
-    # Create an empty list 
+    # Create an empty list
     rows_list = []
 
     # loop through each classification submitted by the users
@@ -78,7 +66,7 @@ def main():
         # Select the information from the species identification task
         for ann_i in annotations:
             if ann_i["task"] == "T4":
-                
+
                 # Select each species annotation and flatten the relevant answers
                 for value_i in ann_i["value"]:
                     choice_i = {}
@@ -94,7 +82,6 @@ def main():
                                 f_time = answers[k].replace("S", "")
                             if "INDIVIDUAL" in k:
                                 inds = answers[k]
-                                
 
                     # Create a new row with the species of choice, class and subject ids
                     choice_i.update(
@@ -104,14 +91,15 @@ def main():
                             "first_seen": f_time,
                             "how_many": inds,
                         }
-                    ) 
-                    
+                    )
+
                     # Include the new row in the list
                     rows_list.append(choice_i)
 
-    #Create a data frame from the list of dictionaries 
-    flat_data = pd.DataFrame(rows_list, 
-                             columns=["classification_id", "label", "first_seen", "how_many"])
+    # Create a data frame from the list of dictionaries
+    flat_data = pd.DataFrame(
+        rows_list, columns=["classification_id", "label", "first_seen", "how_many"]
+    )
 
     # Specify the type of columns
     flat_data["how_many"] = pd.to_numeric(flat_data["how_many"])
@@ -152,7 +140,7 @@ def main():
     )
 
     # create connection to db
-    conn = create_connection(args.db_path)
+    conn = db_utils.create_connection(args.db_path)
 
     # Retrieve the id and clip_id from the subjects table
     subjects_df = pd.read_sql_query("SELECT id, clip_id FROM subjects", conn)
@@ -180,17 +168,10 @@ def main():
     # Select information to include in the agg_annotations table
     class_data = class_data[["id", "species_id", "how_many", "first_seen", "clip_id"]]
 
-    # Add to agg_annotations_clip table
-    try:
-        insert_many(
-            conn, [tuple(i) for i in class_data.values], "agg_annotations_clip", 5
-        )
-    except sqlite3.Error as e:
-        print(e)
-
-    conn.commit()
-
-    print("Aggregation complete")
+    # Add values to agg_annotations_clip
+    db_utils.add_to_table(
+        args.db_path, "agg_annotations_clip", [tuple(i) for i in class_data.values], 5
+    )
 
 
 if __name__ == "__main__":

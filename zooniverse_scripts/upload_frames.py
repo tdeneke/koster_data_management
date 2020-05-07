@@ -1,14 +1,12 @@
-import argparse, os
-from zooniverse_setup import *
-from db_setup import *
+import argparse, os, cv2
+import db_utils, clip_utils
 import pandas as pd
-from clip_utils import *
 from mydia import Videos
 from PIL import Image
-import cv2
 from datetime import date
+from zooniverse_setup import auth_session
 
-# Function to extract up to three frames from movies after the first time seen
+
 def get_fps(video_file):
     return int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
 
@@ -53,13 +51,11 @@ def get_species_frames(species_name, conn):
         lambda x: int(re.findall(r"(?<=_)\d+", x)[0])
     )
 
-    print(frames_df.head())
-
     frames_df.drop(["clip_id"], inplace=True, axis=1)
 
     return frames_df
 
-
+# Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
     reader = Videos()
@@ -120,7 +116,7 @@ def main():
     args = parser.parse_args()
 
     # Connect to koster_db
-    conn = create_connection(args.db_path)
+    conn = db_utils.create_connection(args.db_path)
 
     # Connect to Zooniverse
     koster_project = auth_session(args.user, args.password)
@@ -173,7 +169,7 @@ def main():
 
     annotation_df['frame_paths'] = pd.Series(f_paths)
 
-    annotation_df.drop([i if i not in ['metadata', 'frame_paths']], 1)
+    annotation_df = annotation_df.drop(columns=[i for i in annotation_df.columns if i not in ['metadata', 'frame_paths']], 1)
 
     # Upload frames to Zooniverse (with metadata)
     new_subjects = []

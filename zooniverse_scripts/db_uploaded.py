@@ -1,34 +1,11 @@
 import io, os, json, csv
-import sqlite3
+import sqlite3, db_utils
 import requests, argparse
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from panoptes_client import Project, Panoptes
-from db_setup import *
-from zooniverse_setup import *
-
-
-def get_id(conn, row):
-
-    try:
-        filename, ext = os.path.splitext(row["movie_filename"])
-        gid = retrieve_query(
-            conn, f"SELECT id FROM movies WHERE filename=='{filename}'"
-        )[0][0]
-    except:
-        gid = None
-    return gid
-
-
-def test_table(table, db_table_name, keys=["id"]):
-    try:
-        # check that there are no id columns with a NULL value, which means that they were not matched
-        assert len(table[table[keys].isnull().any(axis=1)]) == 0
-    except AssertionError:
-        print(
-            f"The table {db_table_name} has invalid entries, please ensure that all columns are non-zero"
-        )
+from zooniverse_setup import auth_session
 
 
 def main():
@@ -122,7 +99,7 @@ def main():
     ]
 
     # create connection to db
-    conn = create_connection(args.db_path)
+    conn = db_utils.create_connection(args.db_path)
 
     # Query id and filenames from the movies table
     movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
@@ -160,13 +137,12 @@ def main():
     ).rename(columns={"created_at": "clipped_date"})
 
     # test table validity
-    test_table(clips, "clips", keys=["movie_id"])
+    db_utils.test_table(clips, "clips", keys=["movie_id"])
 
-    # Update the clips table
-    try:
-        insert_many(conn, [(None,) + tuple(i) for i in clips.values], "clips", 6)
-    except sqlite3.Error as e:
-        print(e)
+    # Add values to clips
+    db_utils.add_to_table(
+        args.db_path, "clips", [(None,) + tuple(i) for i in clips.values], 6
+    )
 
     # Combine the info to include in the subjects table
     subjects = comb_data.rename(
@@ -192,17 +168,12 @@ def main():
     subjects["clip_id"] = pd.read_sql_query("SELECT id FROM clips", conn)
 
     # test the validity of entries
-    test_table(subjects, "subjects", keys=["id", "clip_id"])
+    db_utils.test_table(subjects, "subjects", keys=["id", "clip_id"])
 
-    # update the subjects table
-    try:
-        insert_many(conn, [tuple(i) for i in subjects.values], "subjects", 8)
-    except sqlite3.Error as e:
-        print(e)
-
-    conn.commit()
-    
-    print("Updated subjects from Zooniverse")
+    # Add values to subjects
+    db_utils.add_to_table(
+        args.db_path, "subjects", [tuple(i) for i in subjects.values], 8
+    )
 
 
 if __name__ == "__main__":
