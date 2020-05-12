@@ -24,7 +24,7 @@ def get_species_frames(species_name, conn):
         conn,
     )
 
-    frames_df["expected_species"] = species_id
+    frames_df["frame_exp_sp_id"] = species_id
 
     # Get ids of movies
     frames_df["movie_id"], frames_df["filename"] = list(
@@ -140,10 +140,10 @@ def main():
         # Exclude frames that have already been uploaded
         annotation_df = annotation_df[
             ~(annotation_df["movie_id"] == uploaded_frames_df["movie_id"])
-            & ~(annotation_df["movie_frame"] == uploaded_frames_df["frame_number"])
+            & ~(annotation_df["frame_number"] == uploaded_frames_df["frame_number"])
             & ~(
-                annotation_df["expected_species"]
-                == uploaded_frames_df["expected_species"]
+                annotation_df["frame_exp_sp_id"]
+                == uploaded_frames_df["frame_exp_sp_id"]
             )
         ]
 
@@ -164,7 +164,7 @@ def main():
 
     # Save the columns with information about the frames as metadata
     annotation_df["metadata"] = annotation_df[
-        ["movie_frame", "movie_id", "expected_species"]
+        ["frame_number", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
 
     annotation_df['frame_paths'] = pd.Series(f_paths)
