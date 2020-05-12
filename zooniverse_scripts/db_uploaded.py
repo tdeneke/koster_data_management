@@ -119,9 +119,6 @@ def main():
     # Combine the metadata information
     clips_df = pd.concat([clips_df, clips_metadata], axis=1)
     
-    ### Create empty columns non relevant for clips###
-    clips_df.loc[:, clips_df.columns.str.contains('frame')] = None
-    
     # Drop unnecessary columns
     clips_df = clips_df.drop(
         columns=[
@@ -143,15 +140,16 @@ def main():
         # Combine the metadata information
         frames_df = pd.concat([frames_df, frames_metadata], axis=1)
         
-        ### Create empty columns non relevant for frames###
-        frames_df.loc[:, frames_df.columns.str.contains('clip')] = None
-        
         # Combine the frame and clip subjects
         subjects = pd.merge(clips_df, frames_df, how='outer')
         
     else:
+        # Include frame-specific columns
+        subject_columns = pd.read_sql_query("SELECT * FROM subjects", conn)
+        frames_df = frames_df.append(subject_columns.filter(regex='frame'))
+    
         # Combine the frame and clip subjects
-        subjects = clips_df
+        subjects = pd.merge(clips_df, frames_df, how='outer')
         
     # Set subject_id information as id
     subjects = subjects.rename(
