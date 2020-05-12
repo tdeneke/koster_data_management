@@ -34,20 +34,14 @@ def get_confirm_token(response):
     return None
 
 
-# Note for follow-up:
-# Currently we discard sites that have no lat or lon coordinates, since site descriptions are not unique
-# it becomes difficult to match this information otherwise
-# {'coord_lat': '=CentroidLat', 'coord_lon': '=CentroidLong'}
-
-
-def add_movies(movies_file_id, db_path):
+def add_movies(movies_file_id, db_path, movies_path):
 
     # Download the csv with movies information from the google drive
     movies_csv_resp = download_csv_from_google_drive(movies_file_id)
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
     # Include server's path of the movie files
-    movies_df["Fpath"] = movies_df["FilenameCurrent"] + ".mov"
+    movies_df["Fpath"] = movies_df["movies_path"] + movies_df["FilenameCurrent"] + ".mov"
 
     # Set up sites information
     sites_db = movies_df[
@@ -118,10 +112,18 @@ def main():
         default=r"koster_lab.db",
         required=True,
     )
+    parser.add_argument(
+        "-mp",
+        "--movies_path",
+        type=str,
+        help="the absolute path to the movie files",
+        default=r"training_set_5_Jan2020",
+        required=True,
+    )
 
     args = parser.parse_args()
 
-    add_movies(args.movies_file_id, args.db_path)
+    add_movies(args.movies_file_id, args.db_path, args.movies_path)
     add_species(args.species_file_id, args.db_path)
 
 

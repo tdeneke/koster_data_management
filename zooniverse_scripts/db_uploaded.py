@@ -120,8 +120,7 @@ def main():
     clips_df = pd.concat([clips_df, clips_metadata], axis=1)
     
     ### Create empty columns non relevant for clips###
-    clips_df["frame_exp_sp_id"] = ""
-    clips_df["frame_number"] = ""
+    clips_df.loc[:, clips_df.columns.str.contains('frame')] = None
     
     # Drop unnecessary columns
     clips_df = clips_df.drop(
@@ -145,8 +144,7 @@ def main():
         frames_df = pd.concat([frames_df, frames_metadata], axis=1)
         
         ### Create empty columns non relevant for frames###
-        frames_df["clip_start_time"] = ""
-        frames_df["clip_end_time"] = ""
+        frames_df.loc[:, frames_df.columns.str.contains('clip')] = None
         
         # Combine the frame and clip subjects
         subjects = pd.merge(clips_df, frames_df, how='outer')
