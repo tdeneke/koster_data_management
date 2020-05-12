@@ -29,17 +29,14 @@ def main():
 
     args = parser.parse_args()
 
+    # Connect to the Zooniverse project
     project = auth_session(args.user, args.password)
 
-    # Specify the last and first dates when subjects were manually uploaded
-    last_date = "2020-02-03 20:30:00 UTC"
-    first_date = "2019-11-17 00:00:00 UTC"
-
-    # get the export subjects
+    # Get info of subjects uploaded to the project
     export = project.get_export("subjects")
 
-    # save the response as pandas data frame
-    rawdata = pd.read_csv(
+    # Save the subjects info as pandas data frame
+    subjects_df = pd.read_csv(
         io.StringIO(export.content.decode("utf-8")),
         usecols=[
             "subject_id",
@@ -52,53 +49,58 @@ def main():
             "retirement_reason",
         ],
     )
-
-    # Filter manually uploaded subjects
-    man_data = rawdata[
-        (last_date >= rawdata.created_at) & (first_date <= rawdata.created_at)
+    
+    # Add a column that diferentiates clips from frames
+    conditions = [
+    (subjects_df["metadata"].str.contains(".mp4")),
+    (subjects_df["metadata"].str.contains(".jpg"))
     ]
-
-    # filter clip subjects and reset index
-    man_data = (
-        man_data[man_data["metadata"].str.contains(".mp4")]
-        .reset_index(drop=True)
-        .reset_index()
-    )
+    choices = ['clip', 'frame']
+    subjects_df["subject_type"] = np.select(conditions, choices, default='unknown')
+    
+    # Specify dates when finalised clips and frames started to get uploaded
+    first_clips_date = "2019-11-17 00:00:00 UTC"
+    first_frames_date = "2020-06-12 00:00:00 UTC"
+    
+    # Select clip subjects
+    clips_df = subjects_df[
+        (subjects_df.subject_type == "clip") & (first_clips_date <= subjects_df.created_at)
+    ].reset_index(drop=True).reset_index()
 
     # Flatten the metadata information
-    flat_metadata = pd.json_normalize(man_data.metadata.apply(json.loads))
+    clips_metadata = pd.json_normalize(clips_df.metadata.apply(json.loads))
 
     # Select the filename of the clips
-    clip_filenames = flat_metadata["filename"]
+    clip_filenames = clips_metadata["filename"]
 
     # Get the starting time of clips in relation to the original movie
     # split the filename, select the last section, and remove the extension type
-    flat_metadata["start_time"] = (
+    clips_metadata["clip_start_time"] = (
         clip_filenames.str.rsplit("_", 1).str[-1].str.replace(".mp4", "")
     )
 
     # Extract the filename of the original movie
-    flat_metadata["movie_filename_ext"] = flat_metadata.apply(
-        lambda x: x["filename"].replace("_" + x["start_time"], ""), axis=1
+    clips_metadata["movie_filename_ext"] = clips_metadata.apply(
+        lambda x: x["filename"].replace("_" + x["clip_start_time"], ""), axis=1
     )
 
     # Remove the extension of the filename of the original movie
-    flat_metadata["movie_filename"] = flat_metadata["movie_filename_ext"].str.replace(
+    clips_metadata["movie_filename"] = clips_metadata["movie_filename_ext"].str.replace(
         ".mp4", ""
     )
 
     # Get the end time of clips in relation to the original movie
-    flat_metadata["start_time"] = pd.to_numeric(
-        flat_metadata["start_time"], downcast="signed"
+    clips_metadata["clip_start_time"] = pd.to_numeric(
+        clips_metadata["clip_start_time"], downcast="signed"
     )
-    flat_metadata["end_time"] = flat_metadata["start_time"] + 10
+    clips_metadata["clip_end_time"] = clips_metadata["clip_start_time"] + 10
 
-    # select only relevant columns
-    flat_metadata = flat_metadata[
-        ["filename", "movie_filename", "start_time", "end_time"]
+    # Select only relevant columns
+    clips_metadata = clips_metadata[
+        ["filename", "movie_filename", "clip_start_time", "clip_end_time"]
     ]
 
-    # create connection to db
+    # Create connection to db
     conn = db_utils.create_connection(args.db_path)
 
     # Query id and filenames from the movies table
@@ -109,70 +111,83 @@ def main():
 
     # Deal with special characters
     movies_df["movie_filename"] = movies_df["movie_filename"].str.normalize("NFD")
-    flat_metadata["movie_filename"] = flat_metadata["movie_filename"].str.normalize(
-        "NFD"
-    )
+    clips_metadata["movie_filename"] = clips_metadata["movie_filename"].str.normalize("NFD")
 
-    # Reference with movies table
-    flat_metadata = pd.merge(flat_metadata, movies_df, how="left", on="movie_filename")
+    # Reference the clips with the movies table
+    clips_metadata = pd.merge(clips_metadata, movies_df, how="left", on="movie_filename")
 
-    # Drop metadata column and define clip creation date as time uploaded to Zooniverse
-    man_data = man_data.drop(columns="metadata")
-
-    # Combine the information
-    comb_data = pd.concat([man_data, flat_metadata], axis=1)
-
-    # Select information to include in the clips table
-    clips = comb_data.drop(
+    # Combine the metadata information
+    clips_df = pd.concat([clips_df, clips_metadata], axis=1)
+    
+    ### Create empty columns non relevant for clips###
+    clips_df["frame_exp_sp_id"] = ""
+    clips_df["frame_number"] = ""
+    
+    # Drop unnecessary columns
+    clips_df = clips_df.drop(
         columns=[
             "index",
-            "subject_id",
+            "metadata",
             "movie_filename",
+        ]
+    ) 
+    
+    # Select frames subjects
+    frames_df = subjects_df[
+        (subjects_df.subject_type == "frame") & (first_frames_date <= subjects_df.created_at)
+    ]
+    
+    if len(frames_df) > 0:
+        # Flatten the metadata information
+        frames_metadata = pd.json_normalize(frames_df.metadata.apply(json.loads))
+        
+        # Combine the metadata information
+        frames_df = pd.concat([frames_df, frames_metadata], axis=1)
+        
+        ### Create empty columns non relevant for frames###
+        frames_df["clip_start_time"] = ""
+        frames_df["clip_end_time"] = ""
+        
+        # Combine the frame and clip subjects
+        subjects = pd.merge(clips_df, frames_df, how='outer')
+        
+    else:
+        # Combine the frame and clip subjects
+        subjects = clips_df
+        
+    # Set subject_id information as id
+    subjects = subjects.rename(
+        columns={
+            "subject_id": "id",
+        }
+    )
+    
+    # Set the columns in the right order
+    subjects = subjects[
+        [
+            "id",
+            "subject_type",
+            "filename",
+            "clip_start_time",
+            "clip_end_time",
+            "frame_exp_sp_id",
+            "frame_number",
             "workflow_id",
             "subject_set_id",
             "classifications_count",
             "retired_at",
             "retirement_reason",
+            "created_at",
+            "movie_id",
         ]
-    ).rename(columns={"created_at": "clipped_date"})
+    ]           
 
-    # test table validity
-    db_utils.test_table(clips, "clips", keys=["movie_id"])
-
-    # Add values to clips
-    db_utils.add_to_table(
-        args.db_path, "clips", [(None,) + tuple(i) for i in clips.values], 6
-    )
-
-    # Combine the info to include in the subjects table
-    subjects = comb_data.rename(
-        columns={
-            "created_at": "zoo_upload_date",
-            "retirement_reason": "retirement_criteria",
-            "subject_id": "id",
-        }
-    )
-
-    subjects = subjects[
-        [
-            "id",
-            "workflow_id",
-            "subject_set_id",
-            "classifications_count",
-            "retired_at",
-            "retirement_criteria",
-            "zoo_upload_date",
-        ]
-    ]
-
-    subjects["clip_id"] = pd.read_sql_query("SELECT id FROM clips", conn)
-
-    # test the validity of entries
-    db_utils.test_table(subjects, "subjects", keys=["id", "clip_id"])
+    # Test table validity
+    db_utils.test_table(subjects, "subjects", keys=["movie_id"])
 
     # Add values to subjects
     db_utils.add_to_table(
-        args.db_path, "subjects", [tuple(i) for i in subjects.values], 8
+        args.db_path, "subjects", [tuple(i) for i in subjects.values], 14
     )
 
 
