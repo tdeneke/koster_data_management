@@ -20,28 +20,23 @@ UNIQUE (filename),
 FOREIGN KEY (site_id) REFERENCES sites (id)
 ); 
 
-CREATE TABLE IF NOT EXISTS clips
-(
-id integer PRIMARY KEY AUTOINCREMENT,
-clipped_date datetime NULL,
-filename text NULL,
-start_time datetime,
-end_time datetime,
-movie_id integer,
-FOREIGN KEY (movie_id) REFERENCES movies (id)
-);
-
 CREATE TABLE IF NOT EXISTS subjects
 (
 id integer PRIMARY KEY,
+subject_type varchar(255) NULL,
+filename text NULL,
+clip_start_time datetime,
+clip_end_time datetime,
+frame_exp_sp_id integer NULL,
+frame_number integer NULL,
 workflow_id varchar(255) NULL,
 subject_set_id varchar(255),
 classifications_count integer NULL,
 retired_at datetime NULL,
-retirement_criteria text NULL,
-zoo_upload_date datetime,
-clip_id integer,
-FOREIGN KEY (clip_id) REFERENCES clips (id)
+retirement_reason text NULL,
+created_at datetime,
+movie_id integer NULL,
+FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
 
 CREATE TABLE IF NOT EXISTS species
@@ -57,8 +52,8 @@ id integer PRIMARY KEY,
 species_id integer,
 how_many integer,
 first_seen integer,
-clip_id integer,
-FOREIGN KEY (clip_id) REFERENCES clips (id),
+subject_id integer,
+FOREIGN KEY (subject_id) REFERENCES subjects (id),
 FOREIGN KEY (species_id) REFERENCES species (id)
 );
 
@@ -70,10 +65,8 @@ x_position integer NULL,
 y_position integer NULL,
 width integer NULL,
 height integer NULL,
-frame_number integer NULL,
-expected_species integer NULL,
-movie_id integer,
+subject_id integer,
 FOREIGN KEY (species_id) REFERENCES species (id),
-FOREIGN KEY (movie_id) REFERENCES movies (id)
+FOREIGN KEY (subject_id) REFERENCES subjects (id)
 );
 """
