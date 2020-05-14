@@ -8,7 +8,11 @@ from zooniverse_setup import auth_session
 
 
 def get_fps(video_file):
-    return int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
+    try:
+        fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
+    except:
+        fps = None
+    return fps
 
 def get_species_frames(species_name, conn):
 
