@@ -36,15 +36,15 @@ def get_species_frames(species_name, conn):
         )
     )
 
-    # Identify the seconds in the original movie when the species appears
-    frames_df["fps"] = frames_df["filename"].apply(get_fps, 1)
-    frames_df["first_seen_movie"] = frames_df["start_time"] // frames_df["fps"]  + frames_df["first_seen"]
-
     # Get the filepath of the original movie
     frames_df["movie_filepath"] = pd.read_sql_query(
         f"SELECT fpath FROM movies WHERE id IN {tuple(frames_df['movie_id'].values)}",
         conn,
     )
+
+    # Identify the seconds in the original movie when the species appears
+    frames_df["fps"] = frames_df["movie_filepath"].apply(get_fps, 1)
+    frames_df["first_seen_movie"] = frames_df["start_time"] // frames_df["fps"]  + frames_df["first_seen"]
 
     # Set the filename of the frames to extract
     frames_df["movie_frame"] = frames_df["filename"].apply(
