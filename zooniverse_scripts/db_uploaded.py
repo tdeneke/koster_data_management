@@ -49,7 +49,7 @@ def main():
             "retirement_reason",
         ],
     )
-
+    
     # Add a column that diferentiates clips from frames
     conditions = [
     (subjects_df["metadata"].str.contains(".mp4")),
@@ -119,9 +119,6 @@ def main():
     # Combine the metadata information
     clips_df = pd.concat([clips_df, clips_metadata], axis=1)
     
-    ### Create empty columns non relevant for clips###
-    clips_df["frame_exp_sp_id"], clips_df["frame_number"] = None, None
-    
     # Drop unnecessary columns
     clips_df = clips_df.drop(
         columns=[
@@ -133,8 +130,8 @@ def main():
     
     # Select frames subjects
     frames_df = subjects_df[
-        (subjects_df.subject_type == "frame") & (first_frames_date >= subjects_df.created_at)
-    ].reset_index()
+        (subjects_df.subject_type == "frame") & (first_frames_date <= subjects_df.created_at)
+    ]
     
     if len(frames_df) > 0:
         # Flatten the metadata information
@@ -143,15 +140,16 @@ def main():
         # Combine the metadata information
         frames_df = pd.concat([frames_df, frames_metadata], axis=1)
         
-        ### Create empty columns non relevant for frames###
-        frames_df["clip_start_time"], frames_df["clip_end_time"] = None, None
-        
         # Combine the frame and clip subjects
-        subjects = clips_df.append(frames_df)
+        subjects = pd.merge(clips_df, frames_df, how='outer')
         
     else:
+        # Include frame-specific columns
+        subject_columns = pd.read_sql_query("SELECT * FROM subjects", conn)
+        frames_df = frames_df.append(subject_columns.filter(regex='frame'))
+    
         # Combine the frame and clip subjects
-        subjects = clips_df
+        subjects = pd.merge(clips_df, frames_df, how='outer')
         
     # Set subject_id information as id
     subjects = subjects.rename(
@@ -159,7 +157,7 @@ def main():
             "subject_id": "id",
         }
     )
-
+    
     # Set the columns in the right order
     subjects = subjects[
         [
