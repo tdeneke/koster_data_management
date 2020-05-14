@@ -1,6 +1,7 @@
 import argparse, os, cv2, re
 import db_utils, clip_utils
 import pandas as pd
+import numpy as np
 from mydia import Videos
 from PIL import Image
 from datetime import date
@@ -14,7 +15,7 @@ def get_fps(video_file):
         fps = None
     return fps
 
-def get_species_frames(species_name, conn):
+def get_species_frames(species_name, conn, movies_path):
 
     # Get species_id from name
 
@@ -46,8 +47,13 @@ def get_species_frames(species_name, conn):
         conn,
     )
 
+    # Temp solution: get correct version of filename from folder
+    frames_df['movie_base'] = frames_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))), 1)
+    valid_paths = pd.DataFrame(np.array([os.listdir(movies_path), list(map(unswedify, os.listdir(args.movies_path)))]).T, columns=['orig', 'fixed'])
+    frames_df['m_fpath'] = annotation_df.merge(valid_paths, left_on='movie_base', right_on='fixed')['orig']
+
     # Identify the seconds in the original movie when the species appears
-    frames_df["fps"] = frames_df["movie_filepath"].apply(get_fps, 1)
+    frames_df["fps"] = frames_df["m_fpath"].apply(get_fps, 1)
     frames_df["first_seen_movie"] = frames_df["start_time"] // frames_df["fps"]  + frames_df["first_seen"]
 
     # Set the filename of the frames to extract
@@ -62,9 +68,8 @@ def get_species_frames(species_name, conn):
 # Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
-    print(df)
     reader = Videos()
-    videos = reader.read(df["movie_filepath"].tolist(), workers=8)
+    videos = reader.read(df["m_fpath"].tolist(), workers=8)
     video_dict = {k:v for k,v in zip(df.groupby(["movie_filename"]).groups.keys(), videos)}
     df["movie_filename"] = df["movie_filepath"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
@@ -137,7 +142,7 @@ def main():
     koster_project = auth_session(args.user, args.password)
 
     # Get all movie_files and frame_numbers for species
-    annotation_df = get_species_frames(args.species, conn)
+    annotation_df = get_species_frames(args.species, conn, args.movies_path)
 
     # Get species name
     species_id = pd.read_sql_query(
@@ -167,8 +172,13 @@ def main():
         os.mkdir(args.frames_path)
 
     # Get valid movies
-    annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: os.path.basename(str(x)), 1)
-    annotation_df = annotation_df[annotation_df['movie_base'].apply(unswedify, 1).isin(list(map(unswedify, os.listdir(args.movies_path))))]
+    annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))), 1)
+    valid_paths = pd.DataFrame(np.array([os.listdir(args.movies_path), list(map(unswedify, os.listdir(args.movies_path)))]).T, columns=['orig', 'fixed'])
+    annotation_df['m_fpath'] = annotation_df.merge(valid_paths, left_on='movie_base', right_on='fixed')['orig']
+
+    print(annotation_df.head())
+
+
 
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 3)
