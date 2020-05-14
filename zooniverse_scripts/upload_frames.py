@@ -1,4 +1,4 @@
-import argparse, os, cv2
+import argparse, os, cv2, re
 import db_utils, clip_utils
 import pandas as pd
 from mydia import Videos
@@ -20,17 +20,17 @@ def get_species_frames(species_name, conn):
 
     # Get clips for species from db
     frames_df = pd.read_sql_query(
-        f"SELECT subject_id, first_seen, start_time, end_time FROM agg_annotations_clip WHERE agg_annotations_clip.species_id={species_id}",
+        f"SELECT subject_id, first_seen FROM agg_annotations_clip WHERE agg_annotations_clip.species_id={species_id}",
         conn,
     )
 
     frames_df["frame_exp_sp_id"] = species_id
 
     # Get ids of movies
-    frames_df["movie_id"], frames_df["filename"] = list(
+    frames_df["start_time"], frames_df["end_time"], frames_df["movie_id"], frames_df["filename"] = list(
         zip(
             *pd.read_sql_query(
-                f"SELECT movie_id, filename FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND type='clip'",
+                f"SELECT clip_start_time, clip_end_time, movie_id, filename FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND subject_type='clip'",
                 conn,
             ).values
         )
@@ -111,6 +111,14 @@ def main():
         default=r"./frames",
         required=True,
     )
+    parser.add_argument(
+        "-mp",
+        "--movies_path",
+        type=str,
+        help="the absolute path to the movie files",
+        default=r"training_set_5_Jan2020",
+        required=True,
+    )
     args = parser.parse_args()
 
     # Connect to koster_db
@@ -129,7 +137,7 @@ def main():
 
     # Get info of frames already classified
     uploaded_frames_df = pd.read_sql_query(
-        f"SELECT movie_id, frame_number, expected_species FROM agg_annotations_frame WHERE species_id='{species_id}'",
+        f"SELECT movie_id, frame_number, frame_exp_sp_id FROM subjects WHERE frame_exp_sp_id='{species_id}' and subject_type='frame'",
         conn,
     )
 
@@ -148,6 +156,10 @@ def main():
     # Create the folder to store the frames if not exist
     if not os.path.exists(args.frames_path):
         os.mkdir(args.frames_path)
+
+    # Get valid movies
+    annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: os.path.basename(str(x)), 1)
+    annotation_df = annotation_df[annotation_df['movie_base'].isin(os.listdir(args.movies_path))]
 
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 3)
