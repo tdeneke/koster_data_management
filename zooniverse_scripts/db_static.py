@@ -118,7 +118,6 @@ def main():
         type=str,
         help="the absolute path to the movie files",
         default=r"training_set_5_Jan2020",
-        required=True,
     )
 
     args = parser.parse_args()
