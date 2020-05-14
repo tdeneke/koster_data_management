@@ -21,7 +21,7 @@ def get_species_frames(species_name, conn):
     # Get clips for species from db
     frames_df = pd.read_sql_query(
         f"SELECT subject_id, first_seen FROM agg_annotations_clip WHERE agg_annotations_clip.species_id={species_id}",
-        conn,
+        conn
     )
 
     frames_df["frame_exp_sp_id"] = species_id
