@@ -20,7 +20,7 @@ def get_species_frames(species_name, conn):
 
     # Get clips for species from db
     frames_df = pd.read_sql_query(
-        f"SELECT clip_id, first_seen, start_time, end_time FROM agg_annotations_clip LEFT JOIN clips ON agg_annotations_clip.clip_id = clips.id WHERE agg_annotations_clip.species_id={species_id}",
+        f"SELECT subject_id, first_seen, start_time, end_time FROM agg_annotations_clip WHERE agg_annotations_clip.species_id={species_id}",
         conn,
     )
 
@@ -30,7 +30,7 @@ def get_species_frames(species_name, conn):
     frames_df["movie_id"], frames_df["filename"] = list(
         zip(
             *pd.read_sql_query(
-                f"SELECT movie_id, filename FROM clips WHERE id IN {tuple(frames_df['clip_id'].values)}",
+                f"SELECT movie_id, filename FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND type='clip'",
                 conn,
             ).values
         )
@@ -41,7 +41,7 @@ def get_species_frames(species_name, conn):
     frames_df["first_seen_movie"] = frames_df["start_time"] // frames_df["fps"]  + frames_df["first_seen"]
 
     # Get the filepath of the original movie
-    frames_df["movie_filename"] = pd.read_sql_query(
+    frames_df["movie_filepath"] = pd.read_sql_query(
         f"SELECT fpath FROM movies WHERE id IN {tuple(frames_df['movie_id'].values)}",
         conn,
     )
@@ -51,7 +51,7 @@ def get_species_frames(species_name, conn):
         lambda x: int(re.findall(r"(?<=_)\d+", x)[0])
     )
 
-    frames_df.drop(["clip_id"], inplace=True, axis=1)
+    frames_df.drop(["subject_id"], inplace=True, axis=1)
 
     return frames_df
 
@@ -59,29 +59,27 @@ def get_species_frames(species_name, conn):
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
     reader = Videos()
-    videos = reader.read(df["filename"].tolist(), workers=8)
-    m_names = df["movie_filename"].apply(
+    videos = reader.read(df["movie_filepath"].tolist(), workers=8)
+    video_dict = {k:v for k,v in zip(df.groupby(["movie_filename"]).groups.keys(), videos)}
+    df["movie_filename"] = df["movie_filepath"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
-    f_paths = [frames_path
+    df["frames"] = df[["movie_filename", "first_seen_movie", "fps"]].apply(lambda x: video_dict[x['movie_filename']][np.arange(x['first_seen_movie'], x['first_seen_movie'] + 3*x['fps'], x['fps'])], 1)
+    df["frame_names"] = pd.Series([frames_path
                     + "/"
-                    + m_names[i]
+                    + df["movie_filename"]
                     + "_frame_"
-                    + ((df['first_seen_movie'] + j) * df['fps']).astype(str) + ".jpeg" for j in range(n_frames)]
+                    + ((df['first_seen_movie'] + j) * df['fps']).astype(str) + ".jpg" for j in range(n_frames)])
+    
+    # save frames to frame_names
 
-    for i in range(len(videos)):
-        for j in range(n_frames):
-            try:
-                frame = videos[:, (df["first_seen_movie"].iloc[i] + j) * df["fps"].iloc[i], ...][
-                    i
-                ]
-                # save image in filepath
-                Image.fromarray(frame).save(f"{f_paths[i][j]}")
-            except:
-                pass
+    for frame, frame_name in zip(df['frames'].explode(), df['frame_names'].explode()):
+        Image.fromarray(frame).save(
+                f"{frame_name}"
+        )
 
     print("Frames extracted successfully")
-    return f_paths
+    return df["frame_names"]
 
 
 def main():
@@ -167,9 +165,9 @@ def main():
         ["frame_number", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
 
-    annotation_df['frame_paths'] = pd.Series(f_paths)
+    annotation_df['frame_paths'] = f_paths
 
-    annotation_df = annotation_df.drop(columns=[i for i in annotation_df.columns if i not in ['metadata', 'frame_paths']], 1)
+    annotation_df = annotation_df.drop([i for i in annotation_df.columns if i not in ['metadata', 'frame_paths']], 1)
 
     # Upload frames to Zooniverse (with metadata)
     new_subjects = []
