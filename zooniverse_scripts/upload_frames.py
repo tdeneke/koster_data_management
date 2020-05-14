@@ -58,6 +58,7 @@ def get_species_frames(species_name, conn):
 # Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
+    print(df)
     reader = Videos()
     videos = reader.read(df["movie_filepath"].tolist(), workers=8)
     video_dict = {k:v for k,v in zip(df.groupby(["movie_filename"]).groups.keys(), videos)}
@@ -80,6 +81,10 @@ def extract_frames(df, frames_path, n_frames=3):
 
     print("Frames extracted successfully")
     return df["frame_names"]
+
+
+def unswedify(string):
+    return string.encode('utf-8').replace(b'\xc3\xa4', b'a\xcc\x88')
 
 
 def main():
@@ -159,7 +164,7 @@ def main():
 
     # Get valid movies
     annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: os.path.basename(str(x)), 1)
-    annotation_df = annotation_df[annotation_df['movie_base'].isin(os.listdir(args.movies_path))]
+    annotation_df = annotation_df[annotation_df['movie_base'].apply(unswedify, 1).isin(list(map(unswedify, os.listdir(args.movies_path))))]
 
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 3)
