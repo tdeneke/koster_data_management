@@ -49,7 +49,7 @@ def main():
             "retirement_reason",
         ],
     )
-    
+
     # Add a column that diferentiates clips from frames
     conditions = [
     (subjects_df["metadata"].str.contains(".mp4")),
@@ -120,7 +120,7 @@ def main():
     clips_df = pd.concat([clips_df, clips_metadata], axis=1)
     
     ### Create empty columns non relevant for clips###
-    clips_df.loc[:, clips_df.columns.str.contains('frame')] = None
+    clips_df["frame_exp_sp_id"], clips_df["frame_number"] = None, None
     
     # Drop unnecessary columns
     clips_df = clips_df.drop(
@@ -133,8 +133,8 @@ def main():
     
     # Select frames subjects
     frames_df = subjects_df[
-        (subjects_df.subject_type == "frame") & (first_frames_date <= subjects_df.created_at)
-    ]
+        (subjects_df.subject_type == "frame") & (first_frames_date >= subjects_df.created_at)
+    ].reset_index()
     
     if len(frames_df) > 0:
         # Flatten the metadata information
@@ -144,10 +144,10 @@ def main():
         frames_df = pd.concat([frames_df, frames_metadata], axis=1)
         
         ### Create empty columns non relevant for frames###
-        frames_df.loc[:, frames_df.columns.str.contains('clip')] = None
+        frames_df["clip_start_time"], frames_df["clip_end_time"] = None, None
         
         # Combine the frame and clip subjects
-        subjects = pd.merge(clips_df, frames_df, how='outer')
+        subjects = clips_df.append(frames_df)
         
     else:
         # Combine the frame and clip subjects
@@ -159,7 +159,7 @@ def main():
             "subject_id": "id",
         }
     )
-    
+
     # Set the columns in the right order
     subjects = subjects[
         [

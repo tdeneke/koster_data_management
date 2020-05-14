@@ -41,7 +41,7 @@ def add_movies(movies_file_id, db_path, movies_path):
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
     # Include server's path of the movie files
-    movies_df["Fpath"] = movies_df["movies_path"] + movies_df["FilenameCurrent"] + ".mov"
+    movies_df["Fpath"] = movies_path + movies_df["FilenameCurrent"] + ".mov"
 
     # Set up sites information
     sites_db = movies_df[
@@ -118,7 +118,6 @@ def main():
         type=str,
         help="the absolute path to the movie files",
         default=r"training_set_5_Jan2020",
-        required=True,
     )
 
     args = parser.parse_args()
