@@ -49,8 +49,7 @@ def get_species_frames(species_name, conn, movies_path):
 
     # Temp solution: get correct version of filename from folder
     frames_df['movie_base'] = frames_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))), 1)
-    valid_paths = pd.DataFrame(np.array([os.listdir(movies_path), list(map(unswedify, os.listdir(args.movies_path)))]).T, columns=['orig', 'fixed'])
-    frames_df['m_fpath'] = annotation_df.merge(valid_paths, left_on='movie_base', right_on='fixed')['orig']
+    frames_df = frames_df[frames_df["movie_base"].isin(os.listdir(movies_path))]
 
     # Identify the seconds in the original movie when the species appears
     frames_df["fps"] = frames_df["m_fpath"].apply(get_fps, 1)
@@ -93,7 +92,7 @@ def extract_frames(df, frames_path, n_frames=3):
 
 
 def unswedify(string):
-    return string.encode('utf-8').replace(b'\xc3\xa4', b'a\xcc\x88')
+    return string.encode('utf-8').replace(b'a\xcc\x88', b'\xc3\xa4')
 
 
 def main():
@@ -173,12 +172,8 @@ def main():
 
     # Get valid movies
     annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))), 1)
-    valid_paths = pd.DataFrame(np.array([os.listdir(args.movies_path), list(map(unswedify, os.listdir(args.movies_path)))]).T, columns=['orig', 'fixed'])
-    annotation_df['m_fpath'] = annotation_df.merge(valid_paths, left_on='movie_base', right_on='fixed')['orig']
-
+    annotation_df = annotation_df[annotation_df["movie_base"].isin(os.listdir(args.movies_path))]
     print(annotation_df.head())
-
-
 
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 3)
