@@ -83,7 +83,7 @@ def get_species_frames(species_name, conn, movies_path):
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
     reader = Videos()
-    #df["movie_filepath"] = df["movie_filepath"].apply(lambda x: x.replace(".mov", ".mp4"))
+    df["movie_filepath"] = df["movie_filepath"].apply(lambda x: unswedify(str(x)))
     videos = reader.read(df["movie_filepath"].unique().tolist(), workers=8)
     video_dict = {k:v for k,v in zip(df.groupby("movie_base").groups.keys(), videos)}
 
