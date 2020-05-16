@@ -8,7 +8,7 @@ RUN apt-get update && \
     apt-get install -y git && \
     apt-get install -y libglib2.0-0 && \
     apt-get install -y libsm6 libxext6 libxrender-dev && \
-    apt-get install -y libav-tools
+    apt-get install -y ffmpeg
 
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app

@@ -92,11 +92,7 @@ def extract_frames(df, frames_path, n_frames=3):
     )
     
     df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: video_dict[x['movie_base']][np.arange(int(x['first_seen_movie']), int(x['first_seen_movie']) + 3*int(x['fps']), int(x['fps']))], 1)
-    df["frame_names"] = pd.Series([frames_path
-                    + "/"
-                    + df["movie_base"]
-                    + "_frame_"
-                    + ((df['first_seen_movie'] + j) * df['fps']).astype(str) + ".jpg" for j in range(n_frames)])
+    df["frame_names"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: [frames_path + "/" + x["movie_base"] + "_frame_" + str(((x["first_seen_movie"] + j) * x["fps"])) + ".jpg" for j in range(n_frames)], 1) 
     
     # save frames to frame_names
 
@@ -106,7 +102,7 @@ def extract_frames(df, frames_path, n_frames=3):
         )
 
     print("Frames extracted successfully")
-    return df["frame_names"].dropna().explode().reset_index()
+    return df["frame_names"]
 
 
 def unswedify(string):
@@ -200,7 +196,7 @@ def main():
     subject_set = SubjectSet()
 
     subject_set.links.project = koster_project
-    subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y")
+    subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y") + "home"
 
     subject_set.save()
 
@@ -209,7 +205,7 @@ def main():
         ["movie_frame", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
 
-    annotation_df['frame_paths'] = f_paths['frame_names']
+    annotation_df['frame_paths'] = f_paths
 
     annotation_df = annotation_df.drop([i for i in annotation_df.columns if i not in ['metadata', 'frame_paths']], 1)
     annotation_df = annotation_df[["frame_paths", "metadata"]].dropna()
@@ -220,17 +216,17 @@ def main():
 
     for filename, metadata in annotation_df.values:
 
-        print(filename, metadata)
+        for f in filename:
         
-        subject = Subject()
+          subject = Subject()
 
-        subject.links.project = koster_project #tutorial_project
-        subject.add_location(filename)
+          subject.links.project = koster_project #tutorial_project
+          subject.add_location(f)
 
-        subject.metadata.update(metadata)
+          subject.metadata.update(metadata)
 
-        subject.save()
-        new_subjects.append(subject)
+          subject.save()
+          new_subjects.append(subject)
 
     # Upload frames
     subject_set.add(new_subjects)
