@@ -2,7 +2,8 @@ import argparse, os, cv2, re
 import db_utils, clip_utils
 import pandas as pd
 import numpy as np
-from mydia import Videos
+import pims
+#from mydia import Videos
 from PIL import Image
 from datetime import date
 from zooniverse_setup import auth_session
@@ -82,16 +83,19 @@ def get_species_frames(species_name, conn, movies_path):
 # Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
-    reader = Videos()
+    #reader = Videos()
     df["movie_filepath"] = df["movie_filepath"].apply(lambda x: unswedify(str(x)))
-    videos = reader.read(df["movie_filepath"].unique().tolist(), workers=8)
+
+    videos = [pims.Video(i) for i in df["movie_filepath"].unique().tolist()]
+    #videos = reader.read(df["movie_filepath"].unique().tolist(), workers=1)
     video_dict = {k:v for k,v in zip(df.groupby("movie_base").groups.keys(), videos)}
 
     df["movie_filename"] = df["movie_filepath"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
     
-    df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: video_dict[x['movie_base']][np.arange(int(x['first_seen_movie']), int(x['first_seen_movie']) + 3*int(x['fps']), int(x['fps']))], 1)
+
+    df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: video_dict[x['movie_base']][np.arange(int(x['first_seen_movie'])*int(x["fps"]), int(x['first_seen_movie'])*int(x['fps']) + 3*int(x['fps']), int(x['fps']))], 1)
     df["frame_names"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: [frames_path + "/" + x["movie_base"] + "_frame_" + str(((x["first_seen_movie"] + j) * x["fps"])) + ".jpg" for j in range(n_frames)], 1) 
     
     # save frames to frame_names
@@ -106,7 +110,7 @@ def extract_frames(df, frames_path, n_frames=3):
 
 
 def unswedify(string):
-    return string.encode('utf-8').replace(b'\xc3\xa4', b'a\xcc\x88').decode('utf-8')
+    return string.encode('utf-8').replace(b'a\xcc\x88', b'\xc3\xa4').decode('utf-8')  #, b'a\xcc\x88').decode('utf-8')
 
 
 def main():
@@ -187,6 +191,8 @@ def main():
     # Get valid movies
     #annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))).replace(".mov", ".mp4"), 1)
     annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))), 1)
+    print(annotation_df['movie_base'].iloc[0])
+    print(os.listdir(args.movies_path))
     annotation_df = annotation_df[annotation_df["movie_base"].isin(os.listdir(args.movies_path))]
 
     # Extract the frames and save them
