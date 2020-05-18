@@ -136,7 +136,7 @@ def extract_frames(df, frames_path, n_frames=3):
 
 def unswedify(string):
     return (
-        string.encode("utf-8").replace(b"a\xcc\x88", b"\xc3\xa4").decode("utf-8")
+        string.encode("utf-8").replace(b"\xc3\xa4", b"a\xcc\x88").decode("utf-8")
     )  # , b'a\xcc\x88').decode('utf-8')
 
 
