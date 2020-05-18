@@ -102,8 +102,6 @@ def extract_frames(df, frames_path, n_frames=3):
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
 
-    print(df["fps"].head())
-
     df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(
         lambda x: video_dict[x["movie_base"]][
             np.arange(
@@ -118,10 +116,10 @@ def extract_frames(df, frames_path, n_frames=3):
         lambda x: [
             frames_path
             + "/"
-            + x["movie_base"]
+            + x["movie_base"].replace('.mov', '')
             + "_frame_"
             + str(((x["first_seen_movie"] + j) * x["fps"]))
-            + ".jpg"
+            + str(x["frame_exp_sp_id"]) + ".jpg"
             for j in range(n_frames)
         ],
         1,
@@ -222,8 +220,7 @@ def main():
     annotation_df["movie_base"] = annotation_df["movie_filepath"].apply(
         lambda x: unswedify(os.path.basename(str(x))), 1
     )
-    print(annotation_df["movie_base"].iloc[0])
-    print(os.listdir(args.movies_path))
+
     annotation_df = annotation_df[
         annotation_df["movie_base"].isin(os.listdir(args.movies_path))
     ]
@@ -236,7 +233,7 @@ def main():
 
     subject_set.links.project = koster_project
     subject_set.display_name = (
-        args.species + date.today().strftime("_%d_%m_%Y") + "home"
+        args.species + date.today().strftime("_%d_%m_%Y")
     )
 
     subject_set.save()
