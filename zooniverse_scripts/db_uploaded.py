@@ -49,23 +49,28 @@ def main():
             "retirement_reason",
         ],
     )
-    
+
     # Add a column that diferentiates clips from frames
     conditions = [
-    (subjects_df["metadata"].str.contains(".mp4")),
-    (subjects_df["metadata"].str.contains(".jpg"))
+        (subjects_df["metadata"].str.contains(".mp4")),
+        (subjects_df["metadata"].str.contains(".jpg")),
     ]
-    choices = ['clip', 'frame']
-    subjects_df["subject_type"] = np.select(conditions, choices, default='unknown')
-    
+    choices = ["clip", "frame"]
+    subjects_df["subject_type"] = np.select(conditions, choices, default="unknown")
+
     # Specify dates when finalised clips and frames started to get uploaded
     first_clips_date = "2019-11-17 00:00:00 UTC"
     first_frames_date = "2020-06-12 00:00:00 UTC"
-    
+
     # Select clip subjects
-    clips_df = subjects_df[
-        (subjects_df.subject_type == "clip") & (first_clips_date <= subjects_df.created_at)
-    ].reset_index(drop=True).reset_index()
+    clips_df = (
+        subjects_df[
+            (subjects_df.subject_type == "clip")
+            & (first_clips_date <= subjects_df.created_at)
+        ]
+        .reset_index(drop=True)
+        .reset_index()
+    )
 
     # Flatten the metadata information
     clips_metadata = pd.json_normalize(clips_df.metadata.apply(json.loads))
@@ -111,53 +116,48 @@ def main():
 
     # Deal with special characters
     movies_df["movie_filename"] = movies_df["movie_filename"].str.normalize("NFD")
-    clips_metadata["movie_filename"] = clips_metadata["movie_filename"].str.normalize("NFD")
+    clips_metadata["movie_filename"] = clips_metadata["movie_filename"].str.normalize(
+        "NFD"
+    )
 
     # Reference the clips with the movies table
-    clips_metadata = pd.merge(clips_metadata, movies_df, how="left", on="movie_filename")
+    clips_metadata = pd.merge(
+        clips_metadata, movies_df, how="left", on="movie_filename"
+    )
 
     # Combine the metadata information
     clips_df = pd.concat([clips_df, clips_metadata], axis=1)
-    
+
     # Drop unnecessary columns
-    clips_df = clips_df.drop(
-        columns=[
-            "index",
-            "metadata",
-            "movie_filename",
-        ]
-    ) 
-    
+    clips_df = clips_df.drop(columns=["index", "metadata", "movie_filename",])
+
     # Select frames subjects
     frames_df = subjects_df[
-        (subjects_df.subject_type == "frame") & (first_frames_date <= subjects_df.created_at)
+        (subjects_df.subject_type == "frame")
+        & (first_frames_date <= subjects_df.created_at)
     ]
-    
+
     if len(frames_df) > 0:
         # Flatten the metadata information
         frames_metadata = pd.json_normalize(frames_df.metadata.apply(json.loads))
-        
+
         # Combine the metadata information
         frames_df = pd.concat([frames_df, frames_metadata], axis=1)
-        
+
         # Combine the frame and clip subjects
-        subjects = pd.merge(clips_df, frames_df, how='outer')
-        
+        subjects = pd.merge(clips_df, frames_df, how="outer")
+
     else:
         # Include frame-specific columns
         subject_columns = pd.read_sql_query("SELECT * FROM subjects", conn)
-        frames_df = frames_df.append(subject_columns.filter(regex='frame'))
-    
+        frames_df = frames_df.append(subject_columns.filter(regex="frame"))
+
         # Combine the frame and clip subjects
-        subjects = pd.merge(clips_df, frames_df, how='outer')
-        
+        subjects = pd.merge(clips_df, frames_df, how="outer")
+
     # Set subject_id information as id
-    subjects = subjects.rename(
-        columns={
-            "subject_id": "id",
-        }
-    )
-    
+    subjects = subjects.rename(columns={"subject_id": "id",})
+
     # Set the columns in the right order
     subjects = subjects[
         [
@@ -176,7 +176,7 @@ def main():
             "created_at",
             "movie_id",
         ]
-    ]           
+    ]
 
     # Test table validity
     db_utils.test_table(subjects, "subjects", keys=["movie_id"])

@@ -2,6 +2,7 @@ import sqlite3
 
 # Utility functions for common database operations
 
+
 def create_connection(db_file):
     """ create a database connection to the SQLite database
         specified by db_file
@@ -68,15 +69,12 @@ def execute_sql(conn, sql):
 
 
 def add_to_table(db_path, table_name, values, num_fields):
-    
+
     conn = create_connection(db_path)
 
     try:
         insert_many(
-            conn,
-            values,
-            table_name,
-            num_fields,
+            conn, values, table_name, num_fields,
         )
     except sqlite3.Error as e:
         print(e)
@@ -95,17 +93,22 @@ def test_table(df, table_name, keys=["id"]):
             f"The table {table_name} has invalid entries, please ensure that all columns are non-zero"
         )
 
-def get_id(row, field_name, table_name, conn, conditions={'a': '=b'}):
+
+def get_id(row, field_name, table_name, conn, conditions={"a": "=b"}):
 
     # Get id from a table where a condition is met
 
     if isinstance(conditions, dict):
-        condition_string = f" AND ".join([k+v[0]+f"{row[v[1:]]}" for k,v in conditions.items()])
+        condition_string = f" AND ".join(
+            [k + v[0] + f"{row[v[1:]]}" for k, v in conditions.items()]
+        )
     else:
         raise ValueError("Conditions should be specified as a dict, e.g. {'a', '=b'}")
 
     try:
-        id_value = retrieve_query(conn, f"SELECT {field_name} FROM {table_name} WHERE {condition_string}")[0][0]
+        id_value = retrieve_query(
+            conn, f"SELECT {field_name} FROM {table_name} WHERE {condition_string}"
+        )[0][0]
     except IndexError:
         id_value = None
     return id_value

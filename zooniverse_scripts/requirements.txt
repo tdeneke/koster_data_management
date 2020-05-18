@@ -6,3 +6,5 @@ panoptes_client==1.1.1
 opencv_python==4.1.1.26
 Pillow==7.1.2
 scikit_learn==0.23.0
+libmagic==1.0
+-e git+https://github.com/soft-matter/pims.git

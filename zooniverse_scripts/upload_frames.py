@@ -3,7 +3,8 @@ import db_utils, clip_utils
 import pandas as pd
 import numpy as np
 import pims
-#from mydia import Videos
+
+# from mydia import Videos
 from PIL import Image
 from datetime import date
 from zooniverse_setup import auth_session
@@ -16,7 +17,7 @@ from panoptes_client import (
 
 
 def get_fps(video_file):
-    #video_file = video_file.replace(".mov", ".mp4")
+    # video_file = video_file.replace(".mov", ".mp4")
     if isinstance(video_file, str):
         if os.path.isfile(video_file):
             fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
@@ -25,6 +26,7 @@ def get_fps(video_file):
     else:
         fps = None
     return fps
+
 
 def get_species_frames(species_name, conn, movies_path):
 
@@ -37,13 +39,18 @@ def get_species_frames(species_name, conn, movies_path):
     # Get clips for species from db
     frames_df = pd.read_sql_query(
         f"SELECT subject_id, first_seen FROM agg_annotations_clip WHERE agg_annotations_clip.species_id={species_id}",
-        conn
+        conn,
     )
 
     frames_df["frame_exp_sp_id"] = species_id
 
     # Get ids of movies
-    frames_df["start_time"], frames_df["end_time"], frames_df["movie_id"], frames_df["filename"] = list(
+    (
+        frames_df["start_time"],
+        frames_df["end_time"],
+        frames_df["movie_id"],
+        frames_df["filename"],
+    ) = list(
         zip(
             *pd.read_sql_query(
                 f"SELECT clip_start_time, clip_end_time, movie_id, filename FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND subject_type='clip'",
@@ -52,24 +59,24 @@ def get_species_frames(species_name, conn, movies_path):
         )
     )
 
-
     # Get the filepath of the original movie
-    f_paths = pd.read_sql_query(
-        f"SELECT id, fpath FROM movies",
-        conn)
-
+    f_paths = pd.read_sql_query(f"SELECT id, fpath FROM movies", conn)
 
     frames_df = frames_df.merge(f_paths, left_on="movie_id", right_on="id")
-    frames_df['movie_filepath'] = frames_df['fpath']
+    frames_df["movie_filepath"] = frames_df["fpath"]
 
     # Temp solution: get correct version of filename from folder
-    frames_df['movie_base'] = frames_df['movie_filepath'].apply(lambda x: unswedify(str(x)), 1)
-    #frames_df = frames_df[frames_df["movie_base"].isin(os.listdir(movies_path))]
+    frames_df["movie_base"] = frames_df["movie_filepath"].apply(
+        lambda x: unswedify(str(x)), 1
+    )
+    # frames_df = frames_df[frames_df["movie_base"].isin(os.listdir(movies_path))]
 
     # Identify the seconds in the original movie when the species appears
     frames_df["fps"] = frames_df["movie_base"].apply(get_fps, 1)
 
-    frames_df["first_seen_movie"] = frames_df["start_time"] // frames_df["fps"]  + frames_df["first_seen"]
+    frames_df["first_seen_movie"] = (
+        frames_df["start_time"] // frames_df["fps"] + frames_df["first_seen"]
+    )
 
     # Set the filename of the frames to extract
     frames_df["movie_frame"] = frames_df["filename"].apply(
@@ -80,37 +87,59 @@ def get_species_frames(species_name, conn, movies_path):
 
     return frames_df
 
+
 # Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
     # read all videos
-    #reader = Videos()
+    # reader = Videos()
     df["movie_filepath"] = df["movie_filepath"].apply(lambda x: unswedify(str(x)))
 
     videos = [pims.Video(i) for i in df["movie_filepath"].unique().tolist()]
-    #videos = reader.read(df["movie_filepath"].unique().tolist(), workers=1)
-    video_dict = {k:v for k,v in zip(df.groupby("movie_base").groups.keys(), videos)}
+    # videos = reader.read(df["movie_filepath"].unique().tolist(), workers=1)
+    video_dict = {k: v for k, v in zip(df.groupby("movie_base").groups.keys(), videos)}
 
     df["movie_filename"] = df["movie_filepath"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
-    
 
-    df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: video_dict[x['movie_base']][np.arange(int(x['first_seen_movie'])*int(x["fps"]), int(x['first_seen_movie'])*int(x['fps']) + 3*int(x['fps']), int(x['fps']))], 1)
-    df["frame_names"] = df[["movie_base", "first_seen_movie", "fps"]].apply(lambda x: [frames_path + "/" + x["movie_base"] + "_frame_" + str(((x["first_seen_movie"] + j) * x["fps"])) + ".jpg" for j in range(n_frames)], 1) 
-    
+    print(df["fps"].head())
+
+    df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(
+        lambda x: video_dict[x["movie_base"]][
+            np.arange(
+                int(x["first_seen_movie"]) * int(x["fps"]),
+                int(x["first_seen_movie"]) * int(x["fps"]) + 3 * int(x["fps"]),
+                int(x["fps"]),
+            )
+        ],
+        1,
+    )
+    df["frame_names"] = df[["movie_base", "first_seen_movie", "fps"]].apply(
+        lambda x: [
+            frames_path
+            + "/"
+            + x["movie_base"]
+            + "_frame_"
+            + str(((x["first_seen_movie"] + j) * x["fps"]))
+            + ".jpg"
+            for j in range(n_frames)
+        ],
+        1,
+    )
+
     # save frames to frame_names
 
-    for frame, frame_name in zip(df['frames'].explode(), df['frame_names'].explode()):
-        Image.fromarray(frame).save(
-                f"{frame_name}"
-        )
+    for frame, frame_name in zip(df["frames"].explode(), df["frame_names"].explode()):
+        Image.fromarray(frame).save(f"{frame_name}")
 
     print("Frames extracted successfully")
     return df["frame_names"]
 
 
 def unswedify(string):
-    return string.encode('utf-8').replace(b'a\xcc\x88', b'\xc3\xa4').decode('utf-8')  #, b'a\xcc\x88').decode('utf-8')
+    return (
+        string.encode("utf-8").replace(b"a\xcc\x88", b"\xc3\xa4").decode("utf-8")
+    )  # , b'a\xcc\x88').decode('utf-8')
 
 
 def main():
@@ -189,11 +218,15 @@ def main():
         os.mkdir(args.frames_path)
 
     # Get valid movies
-    #annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))).replace(".mov", ".mp4"), 1)
-    annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))), 1)
-    print(annotation_df['movie_base'].iloc[0])
+    # annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))).replace(".mov", ".mp4"), 1)
+    annotation_df["movie_base"] = annotation_df["movie_filepath"].apply(
+        lambda x: unswedify(os.path.basename(str(x))), 1
+    )
+    print(annotation_df["movie_base"].iloc[0])
     print(os.listdir(args.movies_path))
-    annotation_df = annotation_df[annotation_df["movie_base"].isin(os.listdir(args.movies_path))]
+    annotation_df = annotation_df[
+        annotation_df["movie_base"].isin(os.listdir(args.movies_path))
+    ]
 
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 3)
@@ -202,7 +235,9 @@ def main():
     subject_set = SubjectSet()
 
     subject_set.links.project = koster_project
-    subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y") + "home"
+    subject_set.display_name = (
+        args.species + date.today().strftime("_%d_%m_%Y") + "home"
+    )
 
     subject_set.save()
 
@@ -211,11 +246,12 @@ def main():
         ["movie_frame", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
 
-    annotation_df['frame_paths'] = f_paths
+    annotation_df["frame_paths"] = f_paths
 
-    annotation_df = annotation_df.drop([i for i in annotation_df.columns if i not in ['metadata', 'frame_paths']], 1)
+    annotation_df = annotation_df.drop(
+        [i for i in annotation_df.columns if i not in ["metadata", "frame_paths"]], 1
+    )
     annotation_df = annotation_df[["frame_paths", "metadata"]].dropna()
-
 
     # Upload frames to Zooniverse (with metadata)
     new_subjects = []
@@ -223,16 +259,16 @@ def main():
     for filename, metadata in annotation_df.values:
 
         for f in filename:
-        
-          subject = Subject()
 
-          subject.links.project = koster_project #tutorial_project
-          subject.add_location(f)
+            subject = Subject()
 
-          subject.metadata.update(metadata)
+            subject.links.project = koster_project  # tutorial_project
+            subject.add_location(f)
 
-          subject.save()
-          new_subjects.append(subject)
+            subject.metadata.update(metadata)
+
+            subject.save()
+            new_subjects.append(subject)
 
     # Upload frames
     subject_set.add(new_subjects)

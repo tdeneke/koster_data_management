@@ -13,13 +13,20 @@ from sklearn.cluster import DBSCAN
 workflow_2 = 12852
 workflow_2_version = 001.01
 
+
 def bb_iou(boxA, boxB):
 
     # Compute edges
     temp_boxA = boxA.copy()
     temp_boxB = boxB.copy()
-    temp_boxA[2], temp_boxA[3] = temp_boxA[0] + temp_boxA[2], temp_boxA[1] + temp_boxA[3]
-    temp_boxB[2], temp_boxB[3] = temp_boxB[0] + temp_boxB[2], temp_boxB[1] + temp_boxB[3]
+    temp_boxA[2], temp_boxA[3] = (
+        temp_boxA[0] + temp_boxA[2],
+        temp_boxA[1] + temp_boxA[3],
+    )
+    temp_boxB[2], temp_boxB[3] = (
+        temp_boxB[0] + temp_boxB[2],
+        temp_boxB[1] + temp_boxB[3],
+    )
 
     # determine the (x, y)-coordinates of the intersection rectangle
     xA = max(temp_boxA[0], temp_boxB[0])
@@ -43,19 +50,19 @@ def bb_iou(boxA, boxB):
 
     # return the intersection over union value
 
-    return 1-iou
+    return 1 - iou
 
 
 def filter_bboxes(users, bboxes):
     # If there is only one annotation, we take it as the truth (at least for testing)
-    
+
     if len(bboxes) <= 1:
         return [], bboxes
-    
+
     cluster_ids = DBSCAN(min_samples=1, metric=bb_iou).fit_predict(bboxes)
     user_count = len(pd.Series(users).unique())
     counter_dict = Counter(cluster_ids)
-    passing_ids = [k for k, v in counter_dict.items() if v/user_count >= 0.8]
+    passing_ids = [k for k, v in counter_dict.items() if v / user_count >= 0.8]
 
     indices = np.isin(cluster_ids, passing_ids)
 
@@ -63,7 +70,7 @@ def filter_bboxes(users, bboxes):
     for i in passing_ids:
         boxes = np.array(bboxes)[np.where(cluster_ids == i)].mean(axis=0)
         final_boxes.append(boxes)
-    
+
     return indices, final_boxes
 
 
@@ -120,8 +127,12 @@ def main():
     )
     w2_data["user_name"] = w2_data["user_name"].apply(lambda x: {"user_name": x})
     w2_data["subject_id"] = w2_data["subject_ids"].apply(lambda x: {"subject_id": x})
-    w2_data["annotation"] = w2_data["annotations"].apply(lambda x: literal_eval(x)[0]["value"], 1)
-    w2_data["annotation"] = w2_data[["filename", "annotation", "user_name", "subject_id"]].apply(
+    w2_data["annotation"] = w2_data["annotations"].apply(
+        lambda x: literal_eval(x)[0]["value"], 1
+    )
+    w2_data["annotation"] = w2_data[
+        ["filename", "annotation", "user_name", "subject_id"]
+    ].apply(
         lambda x: [
             OrderedDict(
                 list(x["annotation"][i].items())
@@ -133,7 +144,6 @@ def main():
         ],
         1,
     )
-
 
     # Convert annotation to format which the tracker expects
     ds = [
@@ -160,25 +170,36 @@ def main():
     w2_annotations = pd.DataFrame(ds)
     new_rows = []
     final_indices = []
-    for name, group in w2_annotations.groupby(["filename", "class_name", "start_frame"]):
+    for name, group in w2_annotations.groupby(
+        ["filename", "class_name", "start_frame"]
+    ):
 
         filename, class_name, start_frame = name
 
         # Filter bboxes using IOU metric (essentially a consensus metric)
         # Keep only bboxes where mean overlap exceeds this threshold
         indices, new_group = filter_bboxes(
-            users=[i[0] for i in group.values], 
-            bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values]
+            users=[i[0] for i in group.values],
+            bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
         )
 
         subject_ids = [i[8] for i in group.values[indices]]
 
         for ix, box in zip(subject_ids, new_group):
-            new_rows.append((filename, class_name, start_frame, ix, ) + tuple(box))
-
+            new_rows.append((filename, class_name, start_frame, ix,) + tuple(box))
 
     w2_annotations = pd.DataFrame(
-        new_rows, columns=["filename", "class_name", "start_frame", "subject_id", "x", "y", "w", "h"]
+        new_rows,
+        columns=[
+            "filename",
+            "class_name",
+            "start_frame",
+            "subject_id",
+            "x",
+            "y",
+            "w",
+            "h",
+        ],
     )
 
     # Get species id for each species
@@ -186,11 +207,20 @@ def main():
 
     # Get subject table
 
-    subjects_df = pd.read_sql_query("SELECT id, frame_exp_sp_id, movie_id FROM subjects", conn)
-    subjects_df = subjects_df.rename(columns={"id": "subject_id", "frame_exp_sp_id": "species_id"})
+    subjects_df = pd.read_sql_query(
+        "SELECT id, frame_exp_sp_id, movie_id FROM subjects", conn
+    )
+    subjects_df = subjects_df.rename(
+        columns={"id": "subject_id", "frame_exp_sp_id": "species_id"}
+    )
 
     w2_annotations = pd.merge(
-        w2_annotations, subjects_df, how="left", left_on="subject_id", right_on='subject_id', validate="many_to_one"
+        w2_annotations,
+        subjects_df,
+        how="left",
+        left_on="subject_id",
+        right_on="subject_id",
+        validate="many_to_one",
     )
 
     w2_annotations = w2_annotations[w2_annotations.movie_id.notnull()][

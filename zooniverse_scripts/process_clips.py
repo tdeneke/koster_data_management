@@ -47,7 +47,7 @@ def main():
             "annotations",
         ],
     )
-    
+
     # Filter clip classifications
     class_df = class_df[
         (class_df.workflow_id >= workflow_clip)
@@ -57,7 +57,7 @@ def main():
     # Drop worflow columns
     class_df = class_df.drop(columns=["workflow_id", "workflow_version"])
 
-    # Create an empty list 
+    # Create an empty list
     rows_list = []
 
     # Loop through each classification submitted by the users
@@ -68,7 +68,7 @@ def main():
         # Select the information from the species identification task
         for ann_i in annotations:
             if ann_i["task"] == "T4":
-                
+
                 # Select each species annotated and flatten the relevant answers
                 for value_i in ann_i["value"]:
                     choice_i = {}
@@ -84,7 +84,6 @@ def main():
                                 f_time = answers[k].replace("S", "")
                             if "INDIVIDUAL" in k:
                                 inds = answers[k]
-                                
 
                     # Save the species of choice, class and subject id
                     choice_i.update(
@@ -94,13 +93,14 @@ def main():
                             "first_seen": f_time,
                             "how_many": inds,
                         }
-                    ) 
-                    
+                    )
+
                     rows_list.append(choice_i)
 
-    # Create a data frame with annotations as rows 
-    annot_df = pd.DataFrame(rows_list, 
-                             columns=["classification_id", "label", "first_seen", "how_many"])
+    # Create a data frame with annotations as rows
+    annot_df = pd.DataFrame(
+        rows_list, columns=["classification_id", "label", "first_seen", "how_many"]
+    )
 
     # Specify the type of columns of the df
     annot_df["how_many"] = pd.to_numeric(annot_df["how_many"])
@@ -151,22 +151,14 @@ def main():
     annot_df = pd.merge(
         annot_df, speciesdf, how="left", on="label", validate="many_to_one"
     )
-    
+
     # Add index as id and rename the subject_id field
     annot_df = annot_df.reset_index().rename(
         columns={"index": "id", "subject_ids": "subject_id"}
     )
 
     # Set the columns in the right order
-    annot_df = annot_df[
-        [
-            "id", 
-            "species_id", 
-            "how_many", 
-            "first_seen", 
-            "subject_id",
-        ]
-    ]
+    annot_df = annot_df[["id", "species_id", "how_many", "first_seen", "subject_id",]]
 
     # Add annotations to the agg_annotations_clip table
     db_utils.add_to_table(
