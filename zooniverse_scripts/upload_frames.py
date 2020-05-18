@@ -112,7 +112,7 @@ def extract_frames(df, frames_path, n_frames=3):
         ],
         1,
     )
-    df["frame_names"] = df[["movie_base", "first_seen_movie", "fps"]].apply(
+    df["frame_names"] = df[["movie_base", "first_seen_movie", "fps", "frame_exp_sp_id"]].apply(
         lambda x: [
             frames_path
             + "/"
