@@ -228,6 +228,9 @@ def main():
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 3)
 
+    # Rename the filename column 
+    annotation_df = annotation_df.rename(columns={"frame_names": "filename"})
+    
     # Create a subjest in Zooniverse where the frames will be uploaded
     subject_set = SubjectSet()
 
@@ -240,7 +243,7 @@ def main():
 
     # Save the columns with information about the frames as metadata
     annotation_df["metadata"] = annotation_df[
-        ["movie_frame", "movie_id", "frame_exp_sp_id"]
+        ["filename", "movie_frame", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
 
     annotation_df["frame_paths"] = f_paths
