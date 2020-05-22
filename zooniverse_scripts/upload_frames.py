@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import pims
 
-# from mydia import Videos
 from PIL import Image
 from datetime import date
 from zooniverse_setup import auth_session
@@ -17,7 +16,6 @@ from panoptes_client import (
 
 
 def get_fps(video_file):
-    # video_file = video_file.replace(".mov", ".mp4")
     if isinstance(video_file, str):
         if os.path.isfile(video_file):
             fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
@@ -63,16 +61,13 @@ def get_species_frames(species_name, conn, movies_path):
     f_paths = pd.read_sql_query(f"SELECT id, fpath FROM movies", conn)
 
     frames_df = frames_df.merge(f_paths, left_on="movie_id", right_on="id")
-    frames_df["movie_filepath"] = frames_df["fpath"]
 
-    # Temp solution: get correct version of filename from folder
-    frames_df["movie_base"] = frames_df["movie_filepath"].apply(
+    frames_df["movie_filepath"] = frames_df["fpath"].apply(
         lambda x: unswedify(str(x)), 1
     )
-    # frames_df = frames_df[frames_df["movie_base"].isin(os.listdir(movies_path))]
 
     # Identify the seconds in the original movie when the species appears
-    frames_df["fps"] = frames_df["movie_base"].apply(get_fps, 1)
+    frames_df["fps"] = frames_df["movie_filepath"].apply(get_fps, 1)
 
     frames_df["first_seen_movie"] = (
         frames_df["start_time"] // frames_df["fps"] + frames_df["first_seen"]
@@ -90,12 +85,11 @@ def get_species_frames(species_name, conn, movies_path):
 
 # Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
+    
     # read all videos
-    # reader = Videos()
     df["movie_filepath"] = df["movie_filepath"].apply(lambda x: unswedify(str(x)))
 
     videos = [pims.Video(i) for i in df["movie_filepath"].unique().tolist()]
-    # videos = reader.read(df["movie_filepath"].unique().tolist(), workers=1)
     video_dict = {k: v for k, v in zip(df.groupby("movie_base").groups.keys(), videos)}
 
     df["movie_filename"] = df["movie_filepath"].apply(
@@ -215,8 +209,7 @@ def main():
     if not os.path.exists(args.frames_path):
         os.mkdir(args.frames_path)
 
-    # Get valid movies
-    # annotation_df['movie_base'] = annotation_df['movie_filepath'].apply(lambda x: unswedify(os.path.basename(str(x))).replace(".mov", ".mp4"), 1)
+    # Get valid movies base
     annotation_df["movie_base"] = annotation_df["movie_filepath"].apply(
         lambda x: unswedify(os.path.basename(str(x))), 1
     )
@@ -226,7 +219,7 @@ def main():
     ]
 
     # Extract the frames and save them
-    f_paths = extract_frames(annotation_df, args.frames_path, 3)
+    f_paths = extract_frames(annotation_df, args.frames_path, 2)
 
     # Rename the filename column 
     annotation_df = annotation_df.rename(columns={"frame_names": "filename"})
@@ -243,7 +236,7 @@ def main():
 
     # Save the columns with information about the frames as metadata
     annotation_df["metadata"] = annotation_df[
-        ["filename", "movie_frame", "movie_id", "frame_exp_sp_id"]
+        ["movie_frame", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
 
     annotation_df["frame_paths"] = f_paths
@@ -259,6 +252,8 @@ def main():
     for filename, metadata in annotation_df.values:
 
         for f in filename:
+
+            metadata["filename"] = f
 
             subject = Subject()
 
