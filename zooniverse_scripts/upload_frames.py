@@ -234,7 +234,8 @@ def main():
 
     subject_set.save()
 
-    # Save the columns with information about the frames as metadata
+    # Save information relevant to the subjects table of the koster db
+    ##### Need to include "frame_number" and "filename"###
     annotation_df["metadata"] = annotation_df[
         ["movie_frame", "movie_id", "frame_exp_sp_id"]
     ].to_dict("r")
