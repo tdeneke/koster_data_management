@@ -53,25 +53,30 @@ def bb_iou(boxA, boxB):
     return 1 - iou
 
 
-def filter_bboxes(users, bboxes):
-    # If there is only one annotation, we take it as the truth (at least for testing)
+def filter_bboxes(total_users, users, bboxes):
 
-    if len(bboxes) <= 1:
+    # If at least half of those who saw this frame decided that there was an object
+    user_count = pd.Series(users).nunique()
+    if user_count / total_users >= 0.5:
+        # Get clusters of annotation boxes based on iou criterion
+        cluster_ids = DBSCAN(min_samples=1, metric=bb_iou).fit_predict(bboxes)
+        # Count the number of users within each cluster
+        counter_dict = Counter(cluster_ids)
+        # Accept a cluster assignment if at least 80% of users agree on annotation
+        passing_ids = [k for k, v in counter_dict.items() if v / user_count >= 0.8]
+
+        indices = np.isin(cluster_ids, passing_ids)
+
+        final_boxes = []
+        for i in passing_ids:
+            # Compute median over all accepted bounding boxes
+            boxes = np.array(bboxes)[np.where(cluster_ids == i)].median(axis=0)
+            final_boxes.append(boxes)
+
+        return indices, final_boxes
+
+    else:
         return [], bboxes
-
-    cluster_ids = DBSCAN(min_samples=1, metric=bb_iou).fit_predict(bboxes)
-    user_count = len(pd.Series(users).unique())
-    counter_dict = Counter(cluster_ids)
-    passing_ids = [k for k, v in counter_dict.items() if v / user_count >= 0.8]
-
-    indices = np.isin(cluster_ids, passing_ids)
-
-    final_boxes = []
-    for i in passing_ids:
-        boxes = np.array(bboxes)[np.where(cluster_ids == i)].mean(axis=0)
-        final_boxes.append(boxes)
-
-    return indices, final_boxes
 
 
 def main():
@@ -141,7 +146,9 @@ def main():
                 + list(x["subject_id"].items())
             )
             for i in range(len(x["annotation"]))
-        ],
+        ]
+        if len(x["annotation"]) > 0
+        else [OrderedDict(list(x["filename"].items()) + list(x["user_name"].items()))],
         1,
     )
 
@@ -155,11 +162,11 @@ def main():
                 "start_frame": int(
                     i["filename"].split("_frame", 1)[1].replace(".jpg", "")
                 ),
-                "x": int(i["x"]),
-                "y": int(i["y"]),
-                "w": int(i["width"]),
-                "h": int(i["height"]),
-                "subject_id": i["subject_id"],
+                "x": int(i["x"]) if "x" in i else None,
+                "y": int(i["y"]) if "y" in i else None,
+                "w": int(i["width"]) if "width" in i else None,
+                "h": int(i["height"]) if "height" in i else None,
+                "subject_id": i["subject_id"] if "subject_id" in i else None,
             }
         )
         for i in w2_data.annotation.explode()
@@ -167,7 +174,8 @@ def main():
     ]
 
     # Get prepared annotations
-    w2_annotations = pd.DataFrame(ds)
+    w2_full = pd.DataFrame(ds)
+    w2_annotations = w2_full[w2_full["class_name"].notnull()]
     new_rows = []
     final_indices = []
     for name, group in w2_annotations.groupby(
@@ -176,9 +184,12 @@ def main():
 
         filename, class_name, start_frame = name
 
+        total_users = w2_full[w2_full.filename == filename]["user_name"].nunique()
+
         # Filter bboxes using IOU metric (essentially a consensus metric)
         # Keep only bboxes where mean overlap exceeds this threshold
         indices, new_group = filter_bboxes(
+            total_users=total_users,
             users=[i[0] for i in group.values],
             bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
         )

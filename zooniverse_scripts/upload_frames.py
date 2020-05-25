@@ -85,7 +85,7 @@ def get_species_frames(species_name, conn, movies_path):
 
 # Function to extract up to three frames from movies after the first time seen
 def extract_frames(df, frames_path, n_frames=3):
-    
+
     # read all videos
     df["movie_filepath"] = df["movie_filepath"].apply(lambda x: unswedify(str(x)))
 
@@ -106,14 +106,17 @@ def extract_frames(df, frames_path, n_frames=3):
         ],
         1,
     )
-    df["frame_names"] = df[["movie_base", "first_seen_movie", "fps", "frame_exp_sp_id"]].apply(
+    df["frame_names"] = df[
+        ["movie_base", "first_seen_movie", "fps", "frame_exp_sp_id"]
+    ].apply(
         lambda x: [
             frames_path
             + "/"
-            + x["movie_base"].replace('.mov', '')
+            + x["movie_base"].replace(".mov", "")
             + "_frame_"
             + str(((x["first_seen_movie"] + j) * x["fps"]))
-            + str(x["frame_exp_sp_id"]) + ".jpg"
+            + str(x["frame_exp_sp_id"])
+            + ".jpg"
             for j in range(n_frames)
         ],
         1,
@@ -221,23 +224,22 @@ def main():
     # Extract the frames and save them
     f_paths = extract_frames(annotation_df, args.frames_path, 2)
 
-    # Rename the filename column 
+    # Rename the filename column
     annotation_df = annotation_df.rename(columns={"frame_names": "filename"})
-    
+
     # Create a subjest in Zooniverse where the frames will be uploaded
     subject_set = SubjectSet()
 
     subject_set.links.project = koster_project
-    subject_set.display_name = (
-        args.species + date.today().strftime("_%d_%m_%Y")
-    )
+    subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y")
 
     subject_set.save()
 
     # Save information relevant to the subjects table of the koster db
-    ##### Need to include "frame_number" and "filename"###
+    annotation_df["label"] = args.species
+
     annotation_df["metadata"] = annotation_df[
-        ["movie_frame", "movie_id", "frame_exp_sp_id"]
+        ["movie_filepath", "movie_frame", "movie_id", "label"]
     ].to_dict("r")
 
     annotation_df["frame_paths"] = f_paths
