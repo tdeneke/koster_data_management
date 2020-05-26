@@ -4,7 +4,6 @@ import pandas as pd
 import sqlite3
 import db_utils
 from datetime import datetime
-from pathlib import Path
 from zooniverse_setup import auth_session
 
 
@@ -42,7 +41,7 @@ def add_movies(movies_file_id, db_path, movies_path):
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
     # Include server's path of the movie files
-    movies_df["Fpath"] = Path(movies_path, movies_df["FilenameCurrent"] + ".mov")
+    movies_df["Fpath"] = movies_path + '/' + movies_df["FilenameCurrent"] + ".mov"
 
     # Set up sites information
     sites_db = movies_df[
