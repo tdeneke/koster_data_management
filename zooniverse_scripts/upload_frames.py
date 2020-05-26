@@ -74,9 +74,7 @@ def get_species_frames(species_name, conn, movies_path):
     )
 
     # Set the filename of the frames to extract
-    frames_df["frame_number"] = frames_df["filename"].apply(
-        lambda x: int(re.findall(r"(?<=_)\d+", x)[0])
-    )
+    frames_df["frame_number"] = frames_df["first_seen_movie"] * frames_df["fps"]
 
     frames_df.drop(["subject_id"], inplace=True, axis=1)
 
@@ -204,11 +202,10 @@ def main():
 
         # Exclude frames that have already been uploaded
         annotation_df = annotation_df[
-            ~(annotation_df["movie_id"] == uploaded_frames_df["movie_id"])
-            & ~(annotation_df["frame_number"] == uploaded_frames_df["frame_number"])
+            ~(annotation_df["movie_id"].isin(uploaded_frames_df["movie_id"]))
+            & ~(annotation_df["frame_number"].isin(uploaded_frames_df["frame_number"]))
             & ~(
-                annotation_df["frame_exp_sp_id"]
-                == uploaded_frames_df["frame_exp_sp_id"]
+                annotation_df["frame_exp_sp_id"].isin(uploaded_frames_df["frame_exp_sp_id"])
             )
         ]
 
@@ -260,13 +257,13 @@ def main():
 
         for f in range(len(filename)):
 
-            metadata["filename"] = filename[i]
+            metadata["filename"] = filename[f]
             metadata["frame_number"] = metadata["frame_number"] + f * metadata["fps"]
 
             subject = Subject()
 
             subject.links.project = koster_project  # tutorial_project
-            subject.add_location(f)
+            subject.add_location(filename[f])
 
             subject.metadata.update(metadata)
 
