@@ -70,7 +70,7 @@ def filter_bboxes(total_users, users, bboxes):
         final_boxes = []
         for i in passing_ids:
             # Compute median over all accepted bounding boxes
-            boxes = np.array(bboxes)[np.where(cluster_ids == i)].median(axis=0)
+            boxes = np.median(np.array(bboxes)[np.where(cluster_ids == i)], axis=0)
             final_boxes.append(boxes)
 
         return indices, final_boxes
@@ -127,8 +127,19 @@ def main():
     w2_data = w2_data.drop(columns=["workflow_id", "workflow_version"])
 
     # Extract the video filename and annotation details
-    w2_data["filename"] = w2_data["subject_data"].apply(
-        lambda x: [{"filename": v["filename"]} for k, v in json.loads(x).items()][0]
+    w2_data[["filename", "frame_number", "label"]] = pd.DataFrame(
+        w2_data["subject_data"]
+        .apply(
+            lambda x: [
+                {
+                    "filename": v["movie_filepath"],
+                    "frame_number": v["frame_number"],
+                    "label": v["label"],
+                }
+                for k, v in json.loads(x).items()
+            ][0]
+        )
+        .tolist()
     )
     w2_data["user_name"] = w2_data["user_name"].apply(lambda x: {"user_name": x})
     w2_data["subject_id"] = w2_data["subject_ids"].apply(lambda x: {"subject_id": x})
@@ -157,11 +168,9 @@ def main():
         OrderedDict(
             {
                 "user": i["user_name"],
-                "filename": i["filename"].split("_frame", 1)[0],
-                "class_name": i["tool_label"],
-                "start_frame": int(
-                    i["filename"].split("_frame", 1)[1].replace(".jpg", "")
-                ),
+                "filename": i["filename"],
+                "class_name": i["label"],
+                "start_frame": i["frame_number"],
                 "x": int(i["x"]) if "x" in i else None,
                 "y": int(i["y"]) if "y" in i else None,
                 "w": int(i["width"]) if "width" in i else None,
@@ -184,7 +193,7 @@ def main():
 
         filename, class_name, start_frame = name
 
-        total_users = w2_full[w2_full.filename == filename]["user_name"].nunique()
+        total_users = w2_full[w2_full.filename == filename]["user"].nunique()
 
         # Filter bboxes using IOU metric (essentially a consensus metric)
         # Keep only bboxes where mean overlap exceeds this threshold
@@ -234,6 +243,7 @@ def main():
         validate="many_to_one",
     )
 
+    # Filter out invalid movies
     w2_annotations = w2_annotations[w2_annotations.movie_id.notnull()][
         ["species_id", "x", "y", "w", "h", "start_frame", "subject_id"]
     ]

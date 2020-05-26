@@ -74,7 +74,7 @@ def get_species_frames(species_name, conn, movies_path):
     )
 
     # Set the filename of the frames to extract
-    frames_df["movie_frame"] = frames_df["filename"].apply(
+    frames_df["frame_number"] = frames_df["filename"].apply(
         lambda x: int(re.findall(r"(?<=_)\d+", x)[0])
     )
 
@@ -100,7 +100,7 @@ def extract_frames(df, frames_path, n_frames=3):
         lambda x: video_dict[x["movie_base"]][
             np.arange(
                 int(x["first_seen_movie"]) * int(x["fps"]),
-                int(x["first_seen_movie"]) * int(x["fps"]) + 3 * int(x["fps"]),
+                int(x["first_seen_movie"]) * int(x["fps"]) + n_frames * int(x["fps"]),
                 int(x["fps"]),
             )
         ],
@@ -114,7 +114,7 @@ def extract_frames(df, frames_path, n_frames=3):
             + "/"
             + x["movie_base"].replace(".mov", "")
             + "_frame_"
-            + str(((x["first_seen_movie"] + j) * x["fps"]))
+            + str(int(((x["first_seen_movie"] + j) * x["fps"])))
             + str(x["frame_exp_sp_id"])
             + ".jpg"
             for j in range(n_frames)
@@ -132,9 +132,13 @@ def extract_frames(df, frames_path, n_frames=3):
 
 
 def unswedify(string):
+    # Convert ä and ö to utf-8
     return (
-        string.encode("utf-8").replace(b"\xc3\xa4", b"a\xcc\x88").decode("utf-8")
-    )  # , b'a\xcc\x88').decode('utf-8')
+        string.encode("utf-8")
+        .replace(b"\xc3\xa4", b"a\xcc\x88")
+        .replace(b"\xc3\xb6", b"a\xcc\x88")
+        .decode("utf-8")
+    )
 
 
 def main():
@@ -239,7 +243,7 @@ def main():
     annotation_df["label"] = args.species
 
     annotation_df["metadata"] = annotation_df[
-        ["movie_filepath", "movie_frame", "movie_id", "label"]
+        ["movie_filepath", "frame_number", "fps", "movie_id", "label"]
     ].to_dict("r")
 
     annotation_df["frame_paths"] = f_paths
@@ -254,9 +258,10 @@ def main():
 
     for filename, metadata in annotation_df.values:
 
-        for f in filename:
+        for f in range(len(filename)):
 
-            metadata["filename"] = f
+            metadata["filename"] = filename[i]
+            metadata["frame_number"] = metadata["frame_number"] + f * metadata["fps"]
 
             subject = Subject()
 
