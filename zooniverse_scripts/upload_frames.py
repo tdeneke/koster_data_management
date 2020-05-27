@@ -68,9 +68,7 @@ def get_species_frames(species_name, conn, movies_path):
     # Identify the seconds in the original movie when the species appears
     frames_df["fps"] = frames_df["movie_filepath"].apply(get_fps, 1)
 
-    frames_df["first_seen_movie"] = (
-        frames_df["start_time"] + frames_df["first_seen"]
-    )
+    frames_df["first_seen_movie"] = frames_df["start_time"] + frames_df["first_seen"]
 
     # Set the filename of the frames to extract
     frames_df["frame_number"] = frames_df["first_seen_movie"] * frames_df["fps"]
@@ -85,21 +83,26 @@ def get_species_frames(species_name, conn, movies_path):
 def extract_frames(df, frames_path, n_frames=3):
 
     # read all videos
-    df["movie_filepath"] = df["movie_filepath"].apply(lambda x: str(x) if os.path.isfile(str(x)) else 
-                                                        unswedify(str(x)))
+    df["movie_filepath"] = df["movie_filepath"].apply(
+        lambda x: str(x) if os.path.isfile(str(x)) else unswedify(str(x))
+    )
 
     videos = [pims.Video(i) for i in df["movie_filepath"].unique().tolist()]
-    video_dict = {k: v for k, v in zip(df.groupby("movie_base").groups.keys(), videos)}
+    video_dict = {k: v for k, v in zip(df["movie_filepath"].unique().tolist(), videos)}
 
     df["movie_filename"] = df["movie_filepath"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
 
-    df["frames"] = df[["movie_base", "first_seen_movie", "fps"]].apply(
-        lambda x: video_dict[x["movie_base"]][
+    df["frames"] = df[["movie_filepath", "first_seen_movie", "fps"]].apply(
+        lambda x: video_dict[x["movie_filepath"]][
             np.arange(
                 int(x["first_seen_movie"]) * int(x["fps"]),
-                int(x["first_seen_movie"]) * int(x["fps"]) + n_frames * int(x["fps"]),
+                min(
+                    int(x["first_seen_movie"]) * int(x["fps"])
+                    + n_frames * int(x["fps"]),
+                    len(video_dict[x["movie_filepath"]]),
+                ),
                 int(x["fps"]),
             )
         ],
@@ -113,7 +116,8 @@ def extract_frames(df, frames_path, n_frames=3):
             + "/"
             + x["movie_base"].replace(".mov", "")
             + "_frame_"
-            + str(int(((x["first_seen_movie"] + j) * x["fps"]))) + "_"
+            + str(int(((x["first_seen_movie"] + j) * x["fps"])))
+            + "_"
             + str(int(x["frame_exp_sp_id"]))
             + ".jpg"
             for j in range(n_frames)
@@ -206,7 +210,9 @@ def main():
             ~(annotation_df["movie_id"].isin(uploaded_frames_df["movie_id"]))
             & ~(annotation_df["frame_number"].isin(uploaded_frames_df["frame_number"]))
             & ~(
-                annotation_df["frame_exp_sp_id"].isin(uploaded_frames_df["frame_exp_sp_id"])
+                annotation_df["frame_exp_sp_id"].isin(
+                    uploaded_frames_df["frame_exp_sp_id"]
+                )
             )
         ]
 
@@ -216,7 +222,10 @@ def main():
 
     # Get valid movies base
     annotation_df["movie_base"] = annotation_df["movie_filepath"].apply(
-        lambda x: os.path.basename(str(x)) if os.path.isfile(x) else unswedify(os.path.basename(str(x))), 1
+        lambda x: os.path.basename(str(x))
+        if os.path.isfile(x)
+        else unswedify(os.path.basename(str(x))),
+        1,
     )
 
     annotation_df = annotation_df[
@@ -241,7 +250,14 @@ def main():
     annotation_df["label"] = args.species
 
     annotation_df["metadata"] = annotation_df[
-        ["movie_filepath", "frame_number", "fps", "movie_id", "label", "frame_exp_sp_id"]
+        [
+            "movie_filepath",
+            "frame_number",
+            "fps",
+            "movie_id",
+            "label",
+            "frame_exp_sp_id",
+        ]
     ].to_dict("r")
 
     annotation_df["frame_paths"] = f_paths
