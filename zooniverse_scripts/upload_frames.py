@@ -241,7 +241,7 @@ def main():
     annotation_df["label"] = args.species
 
     annotation_df["metadata"] = annotation_df[
-        ["movie_filepath", "frame_number", "fps", "movie_id", "label"]
+        ["movie_filepath", "frame_number", "fps", "movie_id", "label", "frame_exp_sp_id"]
     ].to_dict("r")
 
     annotation_df["frame_paths"] = f_paths
