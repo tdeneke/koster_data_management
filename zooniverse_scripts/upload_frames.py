@@ -248,6 +248,7 @@ def main():
 
     # Save information relevant to the subjects table of the koster db
     annotation_df["label"] = args.species
+    annotation_df["subject_type"] = "frame"
 
     annotation_df["metadata"] = annotation_df[
         [
@@ -257,6 +258,7 @@ def main():
             "movie_id",
             "label",
             "frame_exp_sp_id",
+            "subject_type",
         ]
     ].to_dict("r")
 
