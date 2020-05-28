@@ -59,7 +59,7 @@ def filter_bboxes(total_users, users, bboxes):
     user_count = pd.Series(users).nunique()
     if user_count / total_users >= 0.5:
         # Get clusters of annotation boxes based on iou criterion
-        cluster_ids = DBSCAN(min_samples=1, metric=bb_iou).fit_predict(bboxes)
+        cluster_ids = DBSCAN(min_samples=1, metric=bb_iou, eps=0.5).fit_predict(bboxes)
         # Count the number of users within each cluster
         counter_dict = Counter(cluster_ids)
         # Accept a cluster assignment if at least 80% of users agree on annotation
