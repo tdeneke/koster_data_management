@@ -6,6 +6,7 @@ import pims
 
 from PIL import Image
 from datetime import date
+from tqdm import tqdm
 from zooniverse_setup import auth_session
 from panoptes_client import (
     SubjectSet,
@@ -181,6 +182,14 @@ def main():
         default=r"training_set_5_Jan2020",
         required=True,
     )
+    parser.add_argument(
+        "-t",
+        "--testing",
+        type=bool,
+        help="add flag if testing",
+        default=True,
+        required=False,
+    )
     args = parser.parse_args()
 
     # Connect to koster_db
@@ -203,7 +212,7 @@ def main():
         conn,
     )
 
-    if len(uploaded_frames_df) > 0:
+    if len(uploaded_frames_df) > 0 and not args.testing:
 
         # Exclude frames that have already been uploaded
         annotation_df = annotation_df[
@@ -215,6 +224,10 @@ def main():
                 )
             )
         ]
+
+    if len(annotation_df) == 0: 
+        print("There are no subjects to upload, this may be because all of the subjects have already been uploaded")
+        raise
 
     # Create the folder to store the frames if not exist
     if not os.path.exists(args.frames_path):
@@ -272,7 +285,7 @@ def main():
     # Upload frames to Zooniverse (with metadata)
     new_subjects = []
 
-    for filename, metadata in annotation_df.values:
+    for filename, metadata in tqdm(annotation_df.values):
 
         for f in range(len(filename)):
 
