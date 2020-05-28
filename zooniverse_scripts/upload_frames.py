@@ -187,7 +187,7 @@ def main():
         "--testing",
         type=bool,
         help="add flag if testing",
-        default=True,
+        default=False,
         required=False,
     )
     args = parser.parse_args()
@@ -212,7 +212,7 @@ def main():
         conn,
     )
 
-    if len(uploaded_frames_df) > 0 and not args.testing:
+    if len(uploaded_frames_df) > 0 or not args.testing:
 
         # Exclude frames that have already been uploaded
         annotation_df = annotation_df[
@@ -225,8 +225,10 @@ def main():
             )
         ]
 
-    if len(annotation_df) == 0: 
-        print("There are no subjects to upload, this may be because all of the subjects have already been uploaded")
+    if len(annotation_df) == 0:
+        print(
+            "There are no subjects to upload, this may be because all of the subjects have already been uploaded"
+        )
         raise
 
     # Create the folder to store the frames if not exist
