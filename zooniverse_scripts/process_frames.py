@@ -11,7 +11,7 @@ from sklearn.cluster import DBSCAN
 
 # Specify the workflow of interest and its version
 workflow_2 = 12852
-workflow_2_version = 001.01
+workflow_2_version = 21.85
 
 
 def bb_iou(boxA, boxB):
