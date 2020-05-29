@@ -187,8 +187,8 @@ def main():
         "--testing",
         type=bool,
         help="add flag if testing",
-        default=False,
         required=False,
+        action='store_true',
     )
     args = parser.parse_args()
 
