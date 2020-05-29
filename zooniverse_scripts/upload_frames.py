@@ -185,7 +185,6 @@ def main():
     parser.add_argument(
         "-t",
         "--testing",
-        type=bool,
         help="add flag if testing",
         required=False,
         action='store_true',
