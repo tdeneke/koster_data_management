@@ -211,7 +211,7 @@ def main():
         conn,
     )
 
-    if len(uploaded_frames_df) > 0 or not args.testing:
+    if len(uploaded_frames_df) > 0 and not args.testing:
 
         # Exclude frames that have already been uploaded
         annotation_df = annotation_df[
