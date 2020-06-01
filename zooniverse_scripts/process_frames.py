@@ -156,12 +156,14 @@ def main():
 
     # Extract annotation metadata
     w2_data["annotation"] = w2_data[
-        ["filename", "annotation", "user_name", "subject_id"]
+        ["filename", "frame_number", "label", "annotation", "user_name", "subject_id"]
     ].apply(
         lambda x: [
             OrderedDict(
-                list(x["annotation"][i].items())
-                + list(x["filename"].items())
+                list(x["filename"].items())
+                + list(x["frame_number"].items())
+                + list(x["label"].items())
+                + list(x["annotation"][i].items())
                 + list(x["user_name"].items())
                 + list(x["subject_id"].items())
             )
