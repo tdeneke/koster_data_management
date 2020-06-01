@@ -141,11 +141,20 @@ def main():
         )
         .tolist()
     )
+
+    # Convert to dictionary entries
+    w2_data["filename"] = w2_data["filename"].apply(lambda x: {"filename": x})
+    w2_data["frame_number"] = w2_data["frame_number"].apply(
+        lambda x: {"frame_number": x}
+    )
+    w2_data["label"] = w2_data["label"].apply(lambda x: {"label": x})
     w2_data["user_name"] = w2_data["user_name"].apply(lambda x: {"user_name": x})
     w2_data["subject_id"] = w2_data["subject_ids"].apply(lambda x: {"subject_id": x})
     w2_data["annotation"] = w2_data["annotations"].apply(
         lambda x: literal_eval(x)[0]["value"], 1
     )
+
+    # Extract annotation metadata
     w2_data["annotation"] = w2_data[
         ["filename", "annotation", "user_name", "subject_id"]
     ].apply(
@@ -226,7 +235,6 @@ def main():
     conn = db_utils.create_connection(args.db_path)
 
     # Get subject table
-
     subjects_df = pd.read_sql_query(
         "SELECT id, frame_exp_sp_id, movie_id FROM subjects", conn
     )
@@ -245,7 +253,7 @@ def main():
 
     # Filter out invalid movies
     w2_annotations = w2_annotations[w2_annotations.movie_id.notnull()][
-        ["species_id", "x", "y", "w", "h", "start_frame", "subject_id"]
+        ["species_id", "x", "y", "w", "h", "subject_id"]
     ]
 
     # Add values to agg_annotations_frame
