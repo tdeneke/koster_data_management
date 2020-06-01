@@ -66,6 +66,7 @@ y_position integer NULL,
 width integer NULL,
 height integer NULL,
 subject_id integer,
+UNIQUE (subject_id)
 FOREIGN KEY (species_id) REFERENCES species (id),
 FOREIGN KEY (subject_id) REFERENCES subjects (id)
 );
