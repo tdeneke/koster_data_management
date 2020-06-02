@@ -102,7 +102,6 @@ def main():
         type=float,
         help="threshold of user proportion annotated",
         default=0.8,
-        required=True,
     )
     parser.add_argument(
         "-eps",
@@ -110,7 +109,6 @@ def main():
         type=float,
         help="threshold of iou for clustering",
         default=0.5,
-        required=True,
     )
     parser.add_argument(
         "-iua",
@@ -118,7 +116,6 @@ def main():
         type=float,
         help="proportion of users agreeing on clustering",
         default=0.8,
-        required=True,
     )
     args = parser.parse_args()
 
@@ -248,9 +245,9 @@ def main():
             total_users=total_users,
             users=[i[0] for i in group.values],
             bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
-            obj = args.obj,
-            eps = args.eps,
-            iua = args.iua
+            obj = args.object_thresh,
+            eps = args.iou_epsilon,
+            iua = args.inter_user_agreement
 
         )
 
