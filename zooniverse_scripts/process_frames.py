@@ -53,17 +53,17 @@ def bb_iou(boxA, boxB):
     return 1 - iou
 
 
-def filter_bboxes(total_users, users, bboxes):
+def filter_bboxes(total_users, users, bboxes, obj, eps, iua):
 
     # If at least half of those who saw this frame decided that there was an object
     user_count = pd.Series(users).nunique()
-    if user_count / total_users >= 0.5:
+    if user_count / total_users >= obj:
         # Get clusters of annotation boxes based on iou criterion
-        cluster_ids = DBSCAN(min_samples=1, metric=bb_iou, eps=0.5).fit_predict(bboxes)
+        cluster_ids = DBSCAN(min_samples=1, metric=bb_iou, eps=eps).fit_predict(bboxes)
         # Count the number of users within each cluster
         counter_dict = Counter(cluster_ids)
         # Accept a cluster assignment if at least 80% of users agree on annotation
-        passing_ids = [k for k, v in counter_dict.items() if v / user_count >= 0.8]
+        passing_ids = [k for k, v in counter_dict.items() if v / user_count >= iua]
 
         indices = np.isin(cluster_ids, passing_ids)
 
@@ -94,6 +94,30 @@ def main():
         type=str,
         help="the absolute path to the database file",
         default=r"koster_lab.db",
+        required=True,
+    )
+    parser.add_argument(
+        "-obj",
+        "--object_thresh",
+        type=float,
+        help="threshold of user proportion annotated",
+        default=0.8,
+        required=True,
+    )
+    parser.add_argument(
+        "-eps",
+        "--iou_epsilon",
+        type=float,
+        help="threshold of iou for clustering",
+        default=0.5,
+        required=True,
+    )
+    parser.add_argument(
+        "-iua",
+        "--inter_user_agreement",
+        type=float,
+        help="proportion of users agreeing on clustering",
+        default=0.8,
         required=True,
     )
     args = parser.parse_args()
@@ -170,7 +194,15 @@ def main():
             for i in range(len(x["annotation"]))
         ]
         if len(x["annotation"]) > 0
-        else [OrderedDict(list(x["filename"].items()) + list(x["user_name"].items()))],
+        else [
+            OrderedDict(
+                list(x["filename"].items())
+                + list(x["frame_number"].items())
+                + list(x["label"].items())
+                + list(x["user_name"].items())
+                + list(x["subject_id"].items())
+            )
+        ],
         1,
     )
 
@@ -195,7 +227,7 @@ def main():
 
     # Get prepared annotations
     w2_full = pd.DataFrame(ds)
-    w2_annotations = w2_full[w2_full["class_name"].notnull()]
+    w2_annotations = w2_full[w2_full["x"].notnull()]
     new_rows = []
     final_indices = []
     for name, group in w2_annotations.groupby(
@@ -204,7 +236,11 @@ def main():
 
         filename, class_name, start_frame = name
 
-        total_users = w2_full[w2_full.filename == filename]["user"].nunique()
+        total_users = w2_full[
+            (w2_full.filename == filename)
+            & (w2_full.class_name == class_name)
+            & (w2_full.start_frame == start_frame)
+        ]["user"].nunique()
 
         # Filter bboxes using IOU metric (essentially a consensus metric)
         # Keep only bboxes where mean overlap exceeds this threshold
@@ -212,6 +248,10 @@ def main():
             total_users=total_users,
             users=[i[0] for i in group.values],
             bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
+            obj = args.obj,
+            eps = args.eps,
+            iua = args.iua
+
         )
 
         subject_ids = [i[8] for i in group.values[indices]]
