@@ -36,7 +36,7 @@ if [ $status -ne 0 ]; then
 fi
 
 # Aggregate frame annotations from Zooniverse 
-python process_frames.py -u $1 -p $2 -db $3
+python process_frames.py -u $1 -p $2 -db $3 -obj $5 -eps $6 -iua $7
 status=$?
 if [ $status -ne 0 ]; then
   echo "Frame aggregation failed: $status"
