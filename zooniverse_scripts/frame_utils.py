@@ -27,7 +27,7 @@ def drawBoxes(df, movie_dir, out_path):
         boxes = [tuple(i[4:])[0] for i in group.values]
         for box in boxes:
             # Calculating end-point of bounding box based on starting point and w, h
-            end_box = tuple([int(box[0] + box[1]), int(box[2] + box[3])])
+            end_box = tuple([int(box[0] + box[2]), int(box[1] + box[3])])
             # changed color and width to make it visible
             cv.rectangle(frame, (int(box[0]), int(box[1])), end_box, (255, 0, 0), 1)
         if not os.path.exists(out_path):
