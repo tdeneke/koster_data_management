@@ -5,6 +5,7 @@ import db_utils
 import numpy as np
 import cv2 as cv
 import pandas as pd
+from tqdm import tqdm
 
 
 def drawBoxes(df, movie_dir, out_path):
@@ -20,8 +21,8 @@ def drawBoxes(df, movie_dir, out_path):
         lambda x: tuple([x[0], x[1], x[2], x[3]]), 1
     )
     df = df.drop(columns=["x_position", "y_position", "width", "height"])
-    for name, group in df.groupby(
-        ["movie_path", "frame_number", "species_id", "filename"]
+    for name, group in tqdm(
+        df.groupby(["movie_path", "frame_number", "species_id", "filename"])
     ):
         frame = movie_dict[name[0]][name[1]]
         boxes = [tuple(i[4:])[0] for i in group.values]
@@ -69,6 +70,7 @@ def main():
         conn,
     )
     drawBoxes(df, args.movie_dir, args.output_dir)
+    print("Frames exported successfully")
 
 
 if __name__ == "__main__":

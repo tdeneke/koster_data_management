@@ -127,12 +127,12 @@ def main():
     )
 
     ### Update subjects uploaded automatically ###
-    
+
     # Specify the date when the metadata of subjects uploaded matches schema.py
     first_auto_upload = "2020-05-29 00:00:00 UTC"
-    
+
     # Select automatically uploaded frames
-    auto_subjects_df = subjects_df[subjects_df["created_at"]>first_auto_upload]
+    auto_subjects_df = subjects_df[subjects_df["created_at"] > first_auto_upload]
 
     # Extract metadata from automatically uploaded frames
     auto_subjects_df, auto_subjects_meta = extract_metadata(auto_subjects_df)
@@ -141,22 +141,26 @@ def main():
     auto_subjects_df = pd.concat([auto_subjects_df, auto_subjects_meta], axis=1)
 
     # TODO Check movie_ids of automatically uploaded subjects are correct
-    
+
     ### Update subjects uploaded manually ###
-    
+
     # Specify the starting date when clips were manually uploaded
     first_manual_upload = "2019-11-17 00:00:00 UTC"
-    
+
     # Select clips uploaded manually
     man_clips_df = (
         subjects_df[
             (subjects_df["metadata"].str.contains(".mp4"))
-            & (subjects_df["created_at"].between(first_manual_upload, first_auto_upload))
+            & (
+                subjects_df["created_at"].between(
+                    first_manual_upload, first_auto_upload
+                )
+            )
         ]
         .reset_index(drop=True)
         .reset_index()
     )
-    
+
     # Specify the type of subject
     man_clips_df["subject_type"] = "clip"
 
@@ -168,7 +172,7 @@ def main():
 
     # Combine metadata info with the subjects df
     man_clips_df = pd.concat([man_clips_df, man_clips_meta], axis=1)
-    
+
     ### Update subjects table ###
 
     # Combine all uploaded subjects

@@ -49,7 +49,6 @@ def bb_iou(boxA, boxB):
     iou = interArea / float(boxAArea + boxBArea - interArea)
 
     # return the intersection over union value
-
     return 1 - iou
 
 
@@ -245,10 +244,9 @@ def main():
             total_users=total_users,
             users=[i[0] for i in group.values],
             bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
-            obj = args.object_thresh,
-            eps = args.iou_epsilon,
-            iua = args.inter_user_agreement
-
+            obj=args.object_thresh,
+            eps=args.iou_epsilon,
+            iua=args.inter_user_agreement,
         )
 
         subject_ids = [i[8] for i in group.values[indices]]
@@ -303,7 +301,7 @@ def main():
         7,
     )
 
-    print(f"Frame Aggregation Complete: {len(w2_annotations)} frames added")
+    print(f"Frame Aggregation Complete: {len(w2_annotations)} annotations added")
 
 
 if __name__ == "__main__":

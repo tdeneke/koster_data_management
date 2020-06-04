@@ -187,7 +187,7 @@ def main():
         "--testing",
         help="add flag if testing",
         required=False,
-        action='store_true',
+        action="store_true",
     )
     args = parser.parse_args()
 
