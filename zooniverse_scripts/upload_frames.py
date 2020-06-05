@@ -17,12 +17,9 @@ from panoptes_client import (
 
 
 def get_fps(video_file):
+    video_path = video_file if os.path.isfile(video_file) else unswedify(video_file)
     if isinstance(video_file, str):
-        if os.path.isfile(video_file):
-            fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
-        else:
-            video_file = unswedify(video_file)
-            fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
+        fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
     else:
         fps = None
     return fps
@@ -37,10 +34,7 @@ def get_species_frames(species_id, conn):
     )
 
     # Get information related to the clips
-    (
-        frames_df["start_time"],
-        frames_df["movie_id"],
-    ) = list(
+    (frames_df["start_time"], frames_df["movie_id"],) = list(
         zip(
             *pd.read_sql_query(
                 f"SELECT clip_start_time, movie_id FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND subject_type='clip'",
@@ -51,20 +45,19 @@ def get_species_frames(species_id, conn):
 
     # Identify the first second in the original movie when the species appears
     frames_df["first_seen_movie"] = frames_df["start_time"] + frames_df["first_seen"]
-    
+
     # Get the filepath of the original movie
     f_paths = pd.read_sql_query(f"SELECT id, fpath FROM movies", conn)
 
     frames_df = frames_df.merge(f_paths, left_on="movie_id", right_on="id")
 
-    frames_df = frames_df.rename(columns={"fpath": "movie_filepath"})   
-
-    # Calculate the fps of the original movie    
-    frames_df["fps"] = frames_df["movie_filepath"].apply(get_fps, 1)
+    # Calculate the fps of the original movie
+    frames_df["fps"] = frames_df["fpath"].apply(get_fps, 1)
 
     # Set the filename of the frames to extract
-    frames_df["frame_number"] = frames_df["first_seen_movie"] * frames_df["fps"]
-    frames_df["frame_number"] = frames_df["frame_number"].astype(int)
+    frames_df["frame_number"] = (
+        frames_df["first_seen_movie"] * frames_df["fps"]
+    ).astype(int)
 
     # Add species id to the df
     frames_df["frame_exp_sp_id"] = species_id
@@ -79,25 +72,24 @@ def get_species_frames(species_id, conn):
 def extract_frames(df, frames_path, n_frames):
 
     # read all videos
-    df["movie_filepath"] = df["movie_filepath"].apply(
+    df["fpath"] = df["fpath"].apply(
         lambda x: str(x) if os.path.isfile(str(x)) else unswedify(str(x))
     )
 
-    videos = [pims.Video(i) for i in df["movie_filepath"].unique().tolist()]
-    video_dict = {k: v for k, v in zip(df["movie_filepath"].unique().tolist(), videos)}
+    video_dict = {k: pims.Video(k) for k in df["fpath"].unique()}
 
-    df["movie_filename"] = df["movie_filepath"].apply(
+    df["movie_filename"] = df["fpath"].apply(
         lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
     )
 
-    df["frames"] = df[["movie_filepath", "first_seen_movie", "fps"]].apply(
-        lambda x: video_dict[x["movie_filepath"]][
+    df["frames"] = df[["fpath", "first_seen_movie", "fps"]].apply(
+        lambda x: video_dict[x["fpath"]][
             np.arange(
                 int(x["first_seen_movie"]) * int(x["fps"]),
                 min(
                     int(x["first_seen_movie"]) * int(x["fps"])
                     + n_frames * int(x["fps"]),
-                    len(video_dict[x["movie_filepath"]]),
+                    len(video_dict[x["fpath"]]),
                 ),
                 int(x["fps"]),
             )
@@ -122,7 +114,6 @@ def extract_frames(df, frames_path, n_frames):
     )
 
     # save frames to frame_names
-
     for frame, frame_name in zip(df["frames"].explode(), df["frame_names"].explode()):
         Image.fromarray(frame).save(f"{frame_name}")
 
@@ -184,7 +175,7 @@ def main():
         default=2,
         required=False,
     )
-    
+
     args = parser.parse_args()
 
     # Connect to koster_db
@@ -197,9 +188,9 @@ def main():
     species_id = pd.read_sql_query(
         f"SELECT id FROM species WHERE label='{args.species}'", conn
     ).values[0][0]
-    
+
     # Get all movie_files and frame_numbers for species
-    annotation_df = get_species_frames(species_id, conn, args.movies_path)
+    annotation_df = get_species_frames(species_id, conn)
 
     # Get info of frames already classified
     uploaded_frames_df = pd.read_sql_query(
@@ -231,7 +222,7 @@ def main():
         os.mkdir(args.frames_path)
 
     # Get valid movies base
-    annotation_df["movie_base"] = annotation_df["movie_filepath"].apply(
+    annotation_df["movie_base"] = annotation_df["fpath"].apply(
         lambda x: os.path.basename(str(x))
         if os.path.isfile(x)
         else unswedify(os.path.basename(str(x))),
@@ -262,7 +253,7 @@ def main():
 
     annotation_df["metadata"] = annotation_df[
         [
-            "movie_filepath",
+            "fpath",
             "frame_number",
             "fps",
             "movie_id",
@@ -276,8 +267,7 @@ def main():
 
     annotation_df = annotation_df.drop(
         [i for i in annotation_df.columns if i not in ["metadata", "frame_paths"]], 1
-    )
-    annotation_df = annotation_df[["frame_paths", "metadata"]].dropna()
+    ).dropna()
 
     # Upload frames to Zooniverse (with metadata)
     new_subjects = []
