@@ -28,60 +28,55 @@ def get_fps(video_file):
     return fps
 
 
-def get_species_frames(species_name, conn, movies_path):
+def get_species_frames(species_id, conn):
 
-    # Get species_id from name
-
-    species_id = pd.read_sql_query(
-        f"SELECT id FROM species WHERE label='{species_name}'", conn
-    ).values[0][0]
-
-    # Get clips for species from db
+    # Find classified clips that contain the species of interest
     frames_df = pd.read_sql_query(
         f"SELECT subject_id, first_seen FROM agg_annotations_clip WHERE agg_annotations_clip.species_id={species_id}",
         conn,
     )
 
-    frames_df["frame_exp_sp_id"] = species_id
-
-    # Get ids of movies
+    # Get information related to the clips
     (
         frames_df["start_time"],
-        frames_df["end_time"],
         frames_df["movie_id"],
-        frames_df["filename"],
     ) = list(
         zip(
             *pd.read_sql_query(
-                f"SELECT clip_start_time, clip_end_time, movie_id, filename FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND subject_type='clip'",
+                f"SELECT clip_start_time, movie_id FROM subjects WHERE id IN {tuple(frames_df['subject_id'].values)} AND subject_type='clip'",
                 conn,
             ).values
         )
     )
 
+    # Identify the first second in the original movie when the species appears
+    frames_df["first_seen_movie"] = frames_df["start_time"] + frames_df["first_seen"]
+    
     # Get the filepath of the original movie
     f_paths = pd.read_sql_query(f"SELECT id, fpath FROM movies", conn)
 
     frames_df = frames_df.merge(f_paths, left_on="movie_id", right_on="id")
 
-    frames_df["movie_filepath"] = frames_df["fpath"]
+    frames_df = frames_df.rename(columns={"fpath": "movie_filepath"})   
 
-    # Identify the seconds in the original movie when the species appears
+    # Calculate the fps of the original movie    
     frames_df["fps"] = frames_df["movie_filepath"].apply(get_fps, 1)
-
-    frames_df["first_seen_movie"] = frames_df["start_time"] + frames_df["first_seen"]
 
     # Set the filename of the frames to extract
     frames_df["frame_number"] = frames_df["first_seen_movie"] * frames_df["fps"]
     frames_df["frame_number"] = frames_df["frame_number"].astype(int)
 
+    # Add species id to the df
+    frames_df["frame_exp_sp_id"] = species_id
+
+    # Drop unnecessary columns
     frames_df.drop(["subject_id"], inplace=True, axis=1)
 
     return frames_df
 
 
-# Function to extract up to three frames from movies after the first time seen
-def extract_frames(df, frames_path, n_frames=3):
+# Function to extract up to n frames from movies after the first time seen
+def extract_frames(df, frames_path, n_frames):
 
     # read all videos
     df["movie_filepath"] = df["movie_filepath"].apply(
@@ -175,20 +170,21 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "-mp",
-        "--movies_path",
-        type=str,
-        help="the absolute path to the movie files",
-        default=r"training_set_5_Jan2020",
-        required=True,
-    )
-    parser.add_argument(
         "-t",
         "--testing",
         help="add flag if testing",
         required=False,
         action="store_true",
     )
+    parser.add_argument(
+        "-nf",
+        "--n_frames",
+        type=int,
+        help="number of frames to create per clip",
+        default=2,
+        required=False,
+    )
+    
     args = parser.parse_args()
 
     # Connect to koster_db
@@ -197,13 +193,13 @@ def main():
     # Connect to Zooniverse
     koster_project = auth_session(args.user, args.password)
 
-    # Get all movie_files and frame_numbers for species
-    annotation_df = get_species_frames(args.species, conn, args.movies_path)
-
     # Get species name
     species_id = pd.read_sql_query(
         f"SELECT id FROM species WHERE label='{args.species}'", conn
     ).values[0][0]
+    
+    # Get all movie_files and frame_numbers for species
+    annotation_df = get_species_frames(species_id, conn, args.movies_path)
 
     # Get info of frames already classified
     uploaded_frames_df = pd.read_sql_query(
@@ -247,7 +243,7 @@ def main():
     ]
 
     # Extract the frames and save them
-    f_paths = extract_frames(annotation_df, args.frames_path, 2)
+    f_paths = extract_frames(annotation_df, args.frames_path, n_frames)
 
     # Rename the filename column
     annotation_df = annotation_df.rename(columns={"frame_names": "filename"})
