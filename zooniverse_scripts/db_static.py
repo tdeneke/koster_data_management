@@ -34,6 +34,16 @@ def get_confirm_token(response):
     return None
 
 
+def get_length(video_file):
+    video_path = video_file if os.path.isfile(video_file) else unswedify(video_file)
+    if isinstance(video_file, str):
+        fps = cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS)
+        totalNoFrames = cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FRAME_COUNT)
+        length = float(totalNoFrames) / float(fps)
+    else:
+        length = None
+    return length
+
 def add_movies(movies_file_id, db_path, movies_path):
 
     # Download the csv with movies information from the google drive
@@ -64,9 +74,12 @@ def add_movies(movies_file_id, db_path, movies_path):
         movies_df, sites_df, how="left", left_on="SiteDecription", right_on="name"
     )
 
+    # Calculate the length of the original movies
+    movies_df["duration"] = movies_df["Fpath"].apply(get_length, 1)
+    
     # Select only those fields of interest
     movies_db = movies_df[
-        ["FilenameCurrent", "DateFull", "Total_time", "Author", "Site_id", "Fpath"]
+        ["FilenameCurrent", "DateFull", "duration", "Author", "Site_id", "Fpath"]
     ]
 
     # Add values to movies table
