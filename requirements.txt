@@ -1,7 +1,11 @@
--e git+https://github.com/zooniverse/panoptes-python-client.git#egg=panoptes_client
-ffmpeg==1.4
+mydia==2.2.1
+requests==2.21.0
 numpy==1.16.4
 pandas==1.0.3
+panoptes_client==1.1.1
 opencv_python==4.1.1.26
+Pillow==7.1.2
+scikit_learn==0.23.0
 libmagic==1.0
--e git+https://github.com/soft-matter/pims.git
+-e git+https://github.com/soft-matter/pims.git#egg=PIMS
+av==8.0.1
