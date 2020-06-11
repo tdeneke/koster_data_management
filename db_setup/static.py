@@ -76,7 +76,7 @@ def add_movies(movies_file_id, db_path, movies_path):
     )
 
     # Calculate the fps and length of the original movies
-    movies[["fps", "duration"]] = pd.DataFrame(movies_df["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
+    movies_df[["fps", "duration"]] = pd.DataFrame(movies_df["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
     
     # Select only those fields of interest
     movies_db = movies_df[
