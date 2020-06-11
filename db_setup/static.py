@@ -32,13 +32,6 @@ def get_confirm_token(response):
 
     return None
 
-# TODO merge the get_fps and get_length function
-def get_fps(video_file):
-    if os.path.isfile(video_file):
-        fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
-    else:
-        fps = None
-    return fps
 
 def get_length(video_file):
     if os.path.isfile(video_file):
@@ -46,8 +39,8 @@ def get_length(video_file):
         totalNoFrames = cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FRAME_COUNT)
         length = float(totalNoFrames) / float(fps)
     else:
-        length = None
-    return length
+        length, fps = None, None
+    return fps, length
 
 def add_movies(movies_file_id, db_path, movies_path):
 
@@ -83,8 +76,7 @@ def add_movies(movies_file_id, db_path, movies_path):
     )
 
     # Calculate the fps and length of the original movies
-    movies_df["fps"] = movies_df["Fpath"].apply(get_fps, 1)
-    movies_df["duration"] = movies_df["Fpath"].apply(get_length, 1)
+    movies[["fps", "duration"]] = pd.DataFrame(movies_df["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
     
     # Select only those fields of interest
     movies_db = movies_df[

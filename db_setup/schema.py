@@ -54,6 +54,7 @@ species_id integer,
 how_many integer,
 first_seen integer,
 subject_id integer,
+UNIQUE(species_id, subject_id)
 FOREIGN KEY (subject_id) REFERENCES subjects (id),
 FOREIGN KEY (species_id) REFERENCES species (id)
 );
@@ -67,6 +68,7 @@ y_position integer NULL,
 width integer NULL,
 height integer NULL,
 subject_id integer,
+UNIQUE(species_id, x_position, y_position, width, height, subject_id)
 FOREIGN KEY (species_id) REFERENCES species (id),
 FOREIGN KEY (subject_id) REFERENCES subjects (id)
 );
