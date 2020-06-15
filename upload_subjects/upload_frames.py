@@ -8,7 +8,7 @@ import pims
 from PIL import Image
 from datetime import date
 from tqdm import tqdm
-from zooniverse_setup import auth_session
+from utils.zooniverse_utils import auth_session
 from panoptes_client import (
     SubjectSet,
     Subject,
@@ -46,7 +46,7 @@ def get_species_frames(species_id, conn, frames_path, n_frames):
     f_paths = pd.read_sql_query(f"SELECT id, fpath, fps FROM movies", conn)
 
     # Ensure swedish characters don't cause issues
-    frames_df["fpath"] = frames_df["fpath"].apply(
+    f_paths["fpath"] = f_paths["fpath"].apply(
         lambda x: str(x) if os.path.isfile(str(x)) else db_utils.unswedify(str(x))
     )
     
@@ -56,13 +56,18 @@ def get_species_frames(species_id, conn, frames_path, n_frames):
     # Specify if original movies can be found
     frames_df['exists'] = frames_df['fpath'].map(os.path.isfile)
     
-    if frames_df[~frames_df.exists].any():
+    if len(frames_df[~frames_df.exists]) > 0:
         print(
             f"There are {len(frames_df) - frames_df.exists.sum()} frames with a missing movie"
         )
         
     # Select only frames from movies that can be found
     frames_df = frames_df[frames_df.exists]
+    
+    # Get valid movies filenames
+    frames_df["movie_filename"] = frames_df["fpath"].apply(
+        lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
+    )
     
     # Read all original movies
     video_dict = {k: pims.Video(k) for k in frames_df["fpath"].unique()}
@@ -85,12 +90,12 @@ def get_species_frames(species_id, conn, frames_path, n_frames):
     
     # Set the filename of the frames
     frames_df["filename"] = frames_df[
-        ["movie_base", "first_seen_movie", "fps", "frame_exp_sp_id"]
+        ["movie_filename", "first_seen_movie", "fps", "frame_exp_sp_id"]
     ].apply(
         lambda x: [
             frames_path
             + "/"
-            + x["movie_base"].replace(".mov", "")
+            + x["movie_filename"].replace(".mov", "")
             + "_frame_"
             + str(int(((x["first_seen_movie"] + j) * x["fps"])))
             + "_"
