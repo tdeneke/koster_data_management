@@ -2,7 +2,7 @@ import argparse
 import schema
 import sqlite3
 import sys
-import utils.db_utils as db_utils
+from utils import db_utils
 
 # Initiate the database
 def main():
