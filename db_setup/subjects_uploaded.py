@@ -3,7 +3,7 @@ import sqlite3
 import requests, argparse
 import pandas as pd
 import numpy as np
-from pandas.io.json import json_normalize
+
 from datetime import datetime
 from panoptes_client import Project, Panoptes
 import utils.db_utils as db_utils
@@ -16,7 +16,7 @@ def extract_metadata(subj_df):
     subj_df = subj_df.reset_index(drop=True).reset_index()
 
     # Flatten the metadata information
-    meta_df = json_normalize(subj_df.metadata.apply(json.loads))
+    meta_df = pd.json_normalize(subj_df.metadata.apply(json.loads))
 
     # Drop metadata and index columns from original df
     subj_df = subj_df.drop(columns=["metadata", "index",])
