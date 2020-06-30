@@ -58,7 +58,7 @@ def get_species_frames(species_id, conn, frames_path, n_frames):
     
     if len(frames_df[~frames_df.exists]) > 0:
         print(
-            f"There are {len(frames_df) - frames_df.exists.sum()} frames with a missing movie"
+            f"There are {len(frames_df) - frames_df.exists.sum()} out of {len(frames_df)} frames with a missing movie"
         )
         
     # Select only frames from movies that can be found
