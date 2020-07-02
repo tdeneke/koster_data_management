@@ -94,7 +94,6 @@ def get_species_frames(species_id, conn, frames_path, n_frames):
     ].apply(
         lambda x: [
             frames_path
-            + "/"
             + x["movie_filename"].replace(".mov", "")
             + "_frame_"
             + str(int(((x["first_seen_movie"] + j) * x["fps"])))
