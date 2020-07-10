@@ -3,9 +3,7 @@ import utils.db_utils as db_utils
 import utils.clip_utils as clip_utils
 import pandas as pd
 import numpy as np
-import pims
 
-from PIL import Image
 from datetime import date
 from tqdm import tqdm
 from utils.zooniverse_utils import auth_session
@@ -18,7 +16,7 @@ from panoptes_client import (
 
 # Function to identify up to n number of frames per classified clip
 # that contains species of interest after the first time seen
-def get_species_frames(species_id, conn, frames_path, n_frames):
+def get_species_frames(species_id, conn, n_frames):
 
     # Find classified clips that contain the species of interest
     frames_df = pd.read_sql_query(
@@ -64,59 +62,67 @@ def get_species_frames(species_id, conn, frames_path, n_frames):
     # Select only frames from movies that can be found
     frames_df = frames_df[frames_df.exists]
     
-    # Get valid movies filenames
-    frames_df["movie_filename"] = frames_df["fpath"].apply(
-        lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
-    )
-    
-    # Read all original movies
-    video_dict = {k: pims.Video(k) for k in frames_df["fpath"].unique()}
-
-    # Identify up to n frames of the species per movie
-    frames_df["frames"] = frames_df[["fpath", "first_seen_movie", "fps"]].apply(
-        lambda x: video_dict[x["fpath"]][
-            np.arange(
-                int(x["first_seen_movie"]) * int(x["fps"]),
-                min(
-                    int(x["first_seen_movie"]) * int(x["fps"])
-                    + n_frames * int(x["fps"]),
-                    len(video_dict[x["fpath"]]),
-                ),
-                int(x["fps"]),
-            )
-        ],
-        1,
-    )
-    
-    # Set the filename of the frames
-    frames_df["filename"] = frames_df[
-        ["movie_filename", "first_seen_movie", "fps", "frame_exp_sp_id"]
+    # Identify the ordinal number of the frames expected to be extracted
+    frames_df["frame_number"] = frames_df[
+        ["first_seen_movie", "fps"]
     ].apply(
         lambda x: [
-            frames_path
-            + x["movie_filename"].replace(".mov", "")
-            + "_frame_"
-            + str(int(((x["first_seen_movie"] + j) * x["fps"])))
-            + "_"
-            + str(int(x["frame_exp_sp_id"]))
-            + ".jpg"
+            int((x["first_seen_movie"] + j) * x["fps"])
             for j in range(n_frames)
         ],
         1,
     )
+    
+    # Reshape df to have each frame as rows
+    lst_col = 'frame_number'
 
-    print(frames_df.head())
+    frames_df = pd.DataFrame({
+        col:np.repeat(frames_df[col].values, frames_df[lst_col].str.len())
+        for col in frames_df.columns.difference([lst_col])
+    }).assign(**{lst_col:np.concatenate(frames_df[lst_col].values)})[frames_df.columns.tolist()]
     
     # Drop unnecessary columns
     frames_df.drop(["subject_id"], inplace=True, axis=1)
-
+    
     return frames_df
     
-def extract_frames(df):    
+# Function to extract frames 
+def extract_frames(df, frames_path):    
 
-    # Extract and save frames
-    for frame, filename in zip(df["frames"].explode(), df["filename"].explode()):
-        Image.fromarray(frame).save(f"{filename}")
+    # Get valid movies filenames
+    df["movie_filename"] = df["fpath"].apply(
+        lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
+    )
+    
+    # Set the filename of the frames
+    df["filename"] = (frames_path
+                      + df["movie_filename"].replace(".mov", "")
+                      + "_frame_"
+                      + df["frame_number"].astype(str)
+                      + "_"
+                      + df["frame_exp_sp_id"].astype(str)
+                      + ".jpg"
+                     )
+    
+    print(df.head)
+    
+    for index, row in df.iterrows():
+        
+        # Read the video
+        vidcap = cv2.VideoCapture(row["movie_filename"])
+        
+        # Set the frame to extract
+        vidcap.set(1,row["frame_number"])
+        
+        # Extract the frame
+        ret, frame = vidcap.read()
+        cv2.imwrite(row["filename"], frame)
+        
+        print('Frame ', row["frame_number"], " from ", row["movie_filename"]," was saved to ", row["filename"])
+        
+        vidcap.release()
+    
+    
 
     print("Frames extracted successfully")
     return df["filename"]
@@ -181,7 +187,7 @@ def main():
     ).values[0][0]
 
     # Identify n number of frames per classified clip that contains species of interest 
-    sp_frames_df = get_species_frames(species_id, conn, args.frames_path, args.n_frames)
+    sp_frames_df = get_species_frames(species_id, conn, args.n_frames)
 
     # Get info of frames already uploaded
     uploaded_frames_df = pd.read_sql_query(
@@ -216,7 +222,7 @@ def main():
             os.mkdir(args.frames_path)
         
         # Extract the frames and save them
-        f_paths = extract_frames(sp_frames_df)
+        f_paths = extract_frames(sp_frames_df, args.frames_path)
 
         # Create a subjet set in Zooniverse to host the frames
         subject_set = SubjectSet()
@@ -226,6 +232,8 @@ def main():
 
         subject_set.save()
 
+        print("Zooniverse subject set created")
+            
         # Save information relevant to the subjects table of the koster db
         sp_frames_df["label"] = args.species
         sp_frames_df["subject_type"] = "frame"
