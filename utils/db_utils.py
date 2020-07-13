@@ -123,3 +123,21 @@ def unswedify(string):
     )
 
 
+def find_duplicated_clips(conn):
+    
+    # Retrieve the information of all the clips uploaded
+    subjects_df = pd.read_sql_query(
+        f"SELECT id, movie_id, clip_start_time, clip_end_time FROM subjects WHERE subject_type='clip'",
+        conn,
+    )
+
+    # Find clips uploaded more than once
+    duplicated_subjects_df = subjects_df[subjects_df.duplicated(['movie_id', 'clip_start_time','clip_end_time'],
+                                                                keep=False)]
+    
+    # Count how many time each clip has been uploaded
+    times_uploaded_df = duplicated_subjects_df.groupby(['movie_id', 'clip_start_time'],
+                                              as_index=False).size().to_frame('times')
+    
+    return times_uploaded_df['times'].value_counts()
+
