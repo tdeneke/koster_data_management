@@ -1,5 +1,8 @@
 import sqlite3
 import requests
+import pandas as pd
+import numpy as np
+import io
 
 # Utility functions for common database operations
 
@@ -168,4 +171,19 @@ def find_duplicated_clips(conn):
                                               as_index=False).size().to_frame('times')
     
     return times_uploaded_df['times'].value_counts()
+
+# Function to combine classifications received on duplicated subjects
+def combine_duplicates(annot_df, duplicates_file_id):
+    
+    # Download the csv with information about duplicated subjects
+    dups_csv_resp = download_csv_from_google_drive(duplicates_file_id)
+    dups_df = pd.read_csv(io.StringIO(dups_csv_resp.content.decode("utf-8")))
+    
+    # Include a column with unique ids for duplicated subjects 
+    annot_df = pd.merge(annot_df, dups_df, how="left", left_on="subject_ids", right_on="dupl_subject_id")
+    
+    # Replace the id of duplicated subjects for the id of the first subject
+    annot_df['subject_ids'] = np.where(annot_df.single_subject_id.isnull(), annot_df.subject_ids, annot_df.single_subject_id)
+    
+    return annot_df
 
