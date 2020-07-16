@@ -2,6 +2,7 @@ import io, os, csv, json, sys, re
 import operator, argparse
 import requests
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import utils.db_utils as db_utils
 from utils.zooniverse_utils import auth_session
@@ -55,6 +56,13 @@ def main():
         type=float,
         help="Minimum number of different Zooniverse users required per clip",
         default=3,
+        required=False,
+    )
+    parser.add_argument(
+        "-du",
+        "--duplicates_file_id",
+        help="Google drive id of list of duplicated subjects",
+        type=str,
         required=False,
     )
     
@@ -145,6 +153,10 @@ def main():
         on="classification_id",
     )
 
+    # Clear duplicated subjects
+    if args.duplicates_file_id:
+        annot_df = db_utils.combine_duplicates(annot_df, args.duplicates_file_id)
+        
     # Calculate the number of users that classified each subject
     annot_df["n_users"] = annot_df.groupby("subject_ids")[
         "classification_id"
