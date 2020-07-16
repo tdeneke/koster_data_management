@@ -85,6 +85,24 @@ def process_manual_clips(meta_df, db_path):
     return meta_df
 
 
+# Function to select the first subject of those that are duplicated
+def clean_duplicates(subjects, duplicates_file_id):
+    
+    # Download the csv with information about duplicated subjects
+    dups_csv_resp = db_utils.download_csv_from_google_drive(duplicates_file_id)
+    dups_df = pd.read_csv(io.StringIO(dups_csv_resp.content.decode("utf-8")))
+    
+    # Include a column with unique ids for duplicated subjects 
+    subjects = pd.merge(subjects, dups_df, how="left", left_on="subject_id", right_on="dupl_subject_id")
+    
+    # Replace the id of duplicated subjects for the id of the first subject
+    subjects.subject_id = np.where(subjects.single_subject_id.isnull(), subjects.subject_id, subjects.single_subject_id)
+    
+    #Select only unique subjects
+    subjects = subjects.drop_duplicates(subset='subject_id', keep='first')
+    
+    return subjects
+    
 def main():
 
     "Handles argument parsing and launches the correct function."
@@ -102,6 +120,13 @@ def main():
         help="the absolute path to the database file",
         default=r"koster_lab.db",
         required=True,
+    )
+    parser.add_argument(
+        "-du",
+        "--duplicates_file_id",
+        help="Google drive id of list of duplicated subjects",
+        type=str,
+        required=False,
     )
 
     args = parser.parse_args()
@@ -174,11 +199,15 @@ def main():
     # Combine metadata info with the subjects df
     man_clips_df = pd.concat([man_clips_df, man_clips_meta], axis=1)
 
-    ### Update subjects table ###
-
     # Combine all uploaded subjects
     subjects = pd.merge(man_clips_df, auto_subjects_df, how="outer")
 
+    # Clear duplicated subjects
+    if args.duplicates_file_id:
+        subjects = clean_duplicates(subjects, args.duplicates_file_id)
+    
+    ### Update subjects table ###
+    
     # Set subject_id information as id
     subjects = subjects.rename(columns={"subject_id": "id",})
 
