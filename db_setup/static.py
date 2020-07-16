@@ -5,34 +5,6 @@ import sqlite3
 from datetime import datetime
 import utils.db_utils as db_utils
 
-
-def download_csv_from_google_drive(id):
-
-    # Download the csv files stored in Google Drive with initial information about
-    # the movies and the species
-
-    URL = "https://docs.google.com/uc?export=download"
-
-    session = requests.Session()
-
-    response = session.get(URL, params={"id": id}, stream=True)
-    token = get_confirm_token(response)
-
-    if token:
-        params = {"id": id, "confirm": token}
-        response = session.get(URL, params=params, stream=True)
-
-    return response
-
-
-def get_confirm_token(response):
-    for key, value in response.cookies.items():
-        if key.startswith("download_warning"):
-            return value
-
-    return None
-
-
 def get_length(video_file):
     if os.path.isfile(video_file):
         fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
@@ -45,7 +17,7 @@ def get_length(video_file):
 def add_movies(movies_file_id, db_path, movies_path):
 
     # Download the csv with movies information from the google drive
-    movies_csv_resp = download_csv_from_google_drive(movies_file_id)
+    movies_csv_resp = db_utils.download_csv_from_google_drive(movies_file_id)
     movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
 
     # Include server's path of the movie files
@@ -92,7 +64,7 @@ def add_movies(movies_file_id, db_path, movies_path):
 def add_species(species_file_id, db_path):
 
     # Download the csv with species information from the google drive
-    species_csv_resp = download_csv_from_google_drive(species_file_id)
+    species_csv_resp = db_utils.download_csv_from_google_drive(species_file_id)
     species_df = pd.read_csv(io.StringIO(species_csv_resp.content.decode("utf-8")))
 
     # Add values to species table
