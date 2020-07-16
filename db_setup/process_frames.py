@@ -170,14 +170,10 @@ def main():
         (rawdata.workflow_id >= args.zoo_workflow)
         & (rawdata.workflow_version >= args.zoo_workflow_version)
     ].reset_index()
-
-    print(w2_data.subject_ids.nunique())
           
     # Clear duplicated subjects
     if args.duplicates_file_id:
         w2_data = db_utils.combine_duplicates(w2_data, args.duplicates_file_id)
-        
-    print(w2_data.subject_ids.nunique())
     
     # Calculate the number of users that classified each subject
     w2_data["n_users"] = w2_data.groupby("subject_ids")[
