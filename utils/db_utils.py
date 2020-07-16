@@ -1,4 +1,5 @@
 import sqlite3
+import requests
 
 # Utility functions for common database operations
 
@@ -122,6 +123,33 @@ def unswedify(string):
         .decode("utf-8")
     )
 
+
+
+def download_csv_from_google_drive(id):
+
+    # Download the csv files stored in Google Drive with initial information about
+    # the movies and the species
+
+    URL = "https://docs.google.com/uc?export=download"
+
+    session = requests.Session()
+
+    response = session.get(URL, params={"id": id}, stream=True)
+    token = get_confirm_token(response)
+
+    if token:
+        params = {"id": id, "confirm": token}
+        response = session.get(URL, params=params, stream=True)
+
+    return response
+
+
+def get_confirm_token(response):
+    for key, value in response.cookies.items():
+        if key.startswith("download_warning"):
+            return value
+
+    return None
 
 def find_duplicated_clips(conn):
     
