@@ -3,9 +3,10 @@ import utils.db_utils as db_utils
 import utils.clip_utils as clip_utils
 import pandas as pd
 import numpy as np
+import pims
 
+from PIL import Image
 from datetime import date
-from tqdm import tqdm
 from utils.zooniverse_utils import auth_session
 from panoptes_client import (
     SubjectSet,
@@ -87,16 +88,16 @@ def get_species_frames(species_id, conn, n_frames):
     return frames_df
     
 # Function to extract frames 
-def extract_frames(df, frames_path):    
+def extract_frames(df, frames_folder):    
 
-    # Get valid movies filenames
-    df["movie_filename"] = df["fpath"].apply(
-        lambda x: os.path.splitext(x)[0] if isinstance(x, str) else x, 1
-    )
+    # Get movies filenames from their path
+    df["movie_filename"] = df["fpath"].str.split('/').str[-1].str.replace(".mov", "")
+    
+    
     
     # Set the filename of the frames
-    df["filename"] = (frames_path
-                      + df["movie_filename"].replace(".mov", "")
+    df["frame_path"] = (frames_folder
+                      + df["movie_filename"].astype(str)
                       + "_frame_"
                       + df["frame_number"].astype(str)
                       + "_"
@@ -104,28 +105,29 @@ def extract_frames(df, frames_path):
                       + ".jpg"
                      )
     
-    print(df.head)
     
-    for index, row in df.iterrows():
-        
-        # Read the video
-        vidcap = cv2.VideoCapture(row["movie_filename"])
-        
-        # Set the frame to extract
-        vidcap.set(1,row["frame_number"])
-        
-        # Extract the frame
-        ret, frame = vidcap.read()
-        cv2.imwrite(row["filename"], frame)
-        
-        print('Frame ', row["frame_number"], " from ", row["movie_filename"]," was saved to ", row["filename"])
-        
-        vidcap.release()
-    
-    
+    # Read all original movies
+    video_dict = {k: pims.Video(k) for k in df["fpath"].unique()}
 
+    # Save the frame as matrix    
+    df["frames"] = df[["fpath", "frame_number", "fps"]].apply(
+        lambda x: video_dict[x["fpath"]][
+            np.arange(
+                int(x["frame_number"]),
+                int(x["frame_number"])
+                    + int(x["fps"]),
+                int(x["fps"]),
+            )
+        ],
+        1,
+    )
+    
+    # Extract and save frames
+    for frame, filename in zip(df["frames"].explode(), df["frame_path"].explode()):
+        Image.fromarray(frame).save(f"{filename}")
+        
     print("Frames extracted successfully")
-    return df["filename"]
+    return df["frame_path"]
 
 
 def main():
@@ -151,7 +153,7 @@ def main():
     )
     parser.add_argument(
         "-fp",
-        "--frames_path",
+        "--frames_folder",
         type=str,
         help="the absolute path to the folder to store frames",
         default=r"./frames",
@@ -218,28 +220,19 @@ def main():
      
     else:
         # Create the folder to store the frames if not exist
-        if not os.path.exists(args.frames_path):
-            os.mkdir(args.frames_path)
+        if not os.path.exists(args.frames_folder):
+            os.mkdir(args.frames_folder)
         
         # Extract the frames and save them
-        f_paths = extract_frames(sp_frames_df, args.frames_path)
-
-        # Create a subjet set in Zooniverse to host the frames
-        subject_set = SubjectSet()
-
-        subject_set.links.project = koster_project
-        subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y")
-
-        subject_set.save()
-
-        print("Zooniverse subject set created")
-            
-        # Save information relevant to the subjects table of the koster db
+        sp_frames_df["frame_path"] = extract_frames(sp_frames_df, args.frames_folder)
+ 
+        # Select koster db metadata associated with each frame
         sp_frames_df["label"] = args.species
         sp_frames_df["subject_type"] = "frame"
 
-        sp_frames_df["metadata"] = sp_frames_df[
+        sp_frames_df = sp_frames_df[
             [
+                "frame_path",
                 "fpath",
                 "frame_number",
                 "fps",
@@ -248,36 +241,40 @@ def main():
                 "frame_exp_sp_id",
                 "subject_type",
             ]
-        ].to_dict("r")
+        ]
+        
+        # Save the df as the subject metadata
+        subject_metadata = sp_frames_df.set_index('frame_path').to_dict('index')
+        
+         # Create a subjet set in Zooniverse to host the frames
+        subject_set = SubjectSet()
 
-        sp_frames_df["frame_paths"] = f_paths
+        subject_set.links.project = koster_project
+        subject_set.display_name = args.species + date.today().strftime("_%d_%m_%Y")
 
-        sp_frames_df = sp_frames_df.drop(
-            [i for i in sp_frames_df.columns if i not in ["metadata", "frame_paths"]], 1
-        ).dropna()
+        subject_set.save()
 
+        print("Zooniverse subject set created")
+        
+        
         # Upload frames to Zooniverse (with metadata)
         new_subjects = []
 
-        for filename, metadata in tqdm(sp_frames_df.values):
+        for filename, metadata in subject_metadata.items():
+            subject = Subject()
 
-            for f in range(len(filename)):
+            subject.links.project = koster_project
+            subject.add_location(filename)
 
-                metadata["filename"] = filename[f]
-                metadata["frame_number"] = metadata["frame_number"] + f * metadata["fps"]
+            subject.metadata.update(metadata)
 
-                subject = Subject()
-
-                subject.links.project = koster_project  # tutorial_project
-                subject.add_location(filename[f])
-
-                subject.metadata.update(metadata)
-
-                subject.save()
-                new_subjects.append(subject)
+            subject.save()
+            new_subjects.append(subject)
 
         # Upload frames
         subject_set.add(new_subjects)
+        
+        print("Subjects uploaded to Zooniverse")
 
 
 if __name__ == "__main__":
