@@ -1,35 +1,122 @@
-import os, math, csv
-import subprocess, argparse
-import sqlite3, db_utils
+import argparse, os, cv2, re
+import utils.db_utils as db_utils
+import pandas as pd
 import numpy as np
-from zooniverse_setup import auth_session
+import math
+import subprocess
+
 from datetime import date
+from utils.zooniverse_utils import auth_session
 from panoptes_client import (
     SubjectSet,
     Subject,
     Project,
     Panoptes,
-)  # needed to upload clips to Zooniverse
+)
 
-
-def get_length(filename):
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            filename,
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+def expand_list(df, list_column, new_column): 
+    lens_of_lists = df[list_column].apply(len)
+    origin_rows = range(df.shape[0])
+    destination_rows = np.repeat(origin_rows, lens_of_lists)
+    non_list_cols = (
+      [idx for idx, col in enumerate(df.columns)
+       if col != list_column]
     )
-    return float(result.stdout)
+    expanded_df = df.iloc[destination_rows, non_list_cols].copy()
+    expanded_df[new_column] = (
+      [item for items in df[list_column] for item in items]
+      )
+    expanded_df.reset_index(inplace=True, drop=True)
+    return expanded_df
 
 
+def get_clips(n_clips, conn, video_interest):
+    
+    # Get information of the movies to upload new clips from
+    if video_interest:
+        # Select only the movies of interest if specified
+        available_movies_df = pd.read_sql_query(
+            f"SELECT id, fps, duration, fpath FROM movies WHERE id={video_interest}",
+            conn,
+        )    
+    else:
+        # Select all movies
+        available_movies_df = pd.read_sql_query(
+            f"SELECT id, fps, duration, fpath FROM movies",
+            conn,
+        )
+        
+    # Rename the id of the movies to avoid confusion
+    available_movies_df = available_movies_df.rename(columns={"id": "movie_id"})
+    
+    # Set the start of each movie of interest
+    available_movies_df["start"] = 0
+    
+    # Convert the "duration" column to integer
+    available_movies_df["duration"] = available_movies_df["duration"].astype(int)
+    
+    # Calculate all the potential seconds for the new clips to start
+    available_movies_df["seconds"] = [list(range(i, int(math.floor(j/clip_length)*clip_length), clip_length)) for i, j in available_movies_df[['start','duration']].values]
+    
+    # Reshape the dataframe of potential seconds for the new clips to start
+    potential_start_df = expand_list(available_movies_df, "seconds", "pot_seconds")
+    
+    # Get information of clips uploaded 
+    uploaded_clips_df = pd.read_sql_query(
+        f"SELECT movie_id, clip_start_time, clip_end_time FROM subjects WHERE subject_type='clip' AND movie_id IN {tuple(available_movies_df['movie_id'].values)}",
+        conn,
+    )
+    
+    # Calculate the time when the new clips shouldn't start to avoid duplication (min=0)
+    uploaded_clips_df["clip_start_time"] = (uploaded_clips_df["clip_start_time"]-clip_length).clip(lower=0)
+                      
+    # Calculate all the seconds when the new clips shouldn't start
+    uploaded_clips_df["seconds"] = [list(range(i, j+1)) for i, j in uploaded_clips_df[['clip_start_time','clip_end_time']].values]
+      
+    # Reshape the dataframe of the seconds when the new clips shouldn't start
+    uploaded_start = expand_list(uploaded_clips_df, "seconds", "upl_seconds")[["movie_id","upl_seconds"]]
+        
+    # Exclude starting times of clips that have already been uploaded
+    potential_clips_df = pd.merge(potential_start_df, uploaded_start, 
+                                  how='left', left_on= ["movie_id","pot_seconds"], 
+                                  right_on= ["movie_id","upl_seconds"],
+                                  indicator=True).query('_merge == "left_only"').drop(columns=['_merge'])
+    
+    # Sample up to n clips 
+    new_clips_df = potential_clips_df.sample(n=n_clips)
+    
+    # Select only relevant clomuns
+    clips_df = new_clips_df[["movie_id","fps","fpath","pot_seconds"]]
+    
+    return clips_df
+    
+# Function to extract the clips 
+def extract_clips(df, clips_folder, clip_length):    
+
+    # Get movies filenames from their path
+    df["movie_filename"] = df["fpath"].str.split('/').str[-1].str.replace(".mov", "")
+    
+    # Set the filename of the clips
+    df["clip_path"] = (clips_folder
+                       + "/"
+                       + df["movie_filename"].astype(str)
+                       + "_clip_"
+                       + df["pot_seconds"].astype(str)
+                       + "_"
+                       + str(clip_length)
+                       + ".mp4"
+                      )
+    
+    # Read each movie and extract the clips
+    for movie in df.fpath:
+        movie_df = df[df['fpath'] == movie]
+        for i in range(len(movie_df.index)):
+            subprocess.call(["ffmpeg", "-ss", str(movie_df.iloc[i]['pot_seconds']), "-t", str(clip_length), "-i", movie, "-c", "copy", "-force_key_frames", "1", str(movie_df.iloc[i]['clip_path'])])
+            
+    print("clips extracted successfully")
+    return df["clip_path"]    
+    
+    
 def main():
 
     "Handles argument parsing and launches the correct function."
@@ -41,15 +128,6 @@ def main():
         "--password", "-p", help="Zooniverse password", type=str, required=True
     )
     parser.add_argument(
-        "--location", "-l", help="Location to store clips", type=str, required=True
-    )
-    parser.add_argument(
-        "--video_path", "-v", help="Video to clip", type=str, required=True
-    )
-    parser.add_argument(
-        "--n_clips", "-n", help="Number of clips to sample", type=str, required=True
-    )
-    parser.add_argument(
         "-db",
         "--db_path",
         type=str,
@@ -57,179 +135,110 @@ def main():
         default=r"koster_lab.db",
         required=True,
     )
+    parser.add_argument(
+        "-fp",
+        "--clips_folder",
+        type=str,
+        help="the absolute path to the folder to store clips",
+        default=r"./clips",
+        required=True,
+    )
+    parser.add_argument(
+        "-n",
+        "--n_clips",
+        help="Number of clips to sample", 
+        type=int, 
+        required=True,
+    )
+    parser.add_argument(
+        "-lg",
+        "--clip_length",
+        help="Length in seconds of each clip", 
+        default=10,
+        type=int, 
+        required=False,
+    )
+    parser.add_argument(
+        "-vi",
+        "--video_interest",
+        help="Id of a video of interest to get the clips from", 
+        type=str, 
+        required=False,
+    )
+    
+    
     args = parser.parse_args()
+    
+    # Set the clip of the length if specified
+    if args.clip_length:
+        clip_length=args.clip_length
 
     # Connect to koster_db
     conn = db_utils.create_connection(args.db_path)
-
-    # video_filename = str(os.path.basename(args.video_path))
-    # video_duration = get_length(args.video_path)
-    # v_filename, ext = os.path.splitext(video_filename)
-
-    # Choose a movie in the db to clip
-    try:
-        movie_id = db_utils.retrieve_query(
-            conn, "SELECT id FROM movies EXCEPT SELECT movie_id from clips"
-        )[0][0]
-        v_filename = db_utils.retrieve_query(
-            conn, f"SELECT filename FROM movies WHERE id=={movie_id}"
-        )[0][0]
-    except:
-        raise AssertionError("No such movie exists")
-
-    # Specify how many clips to generate and its length (seconds)
-    n_clips = args.n_clips
-    clip_length = 10
-    video_duration = 250  # get_length(filename)
-    # Only for testing
-    # video_path = "../../../data/videos/test_video.mp4"
-
-    # Split movie into clips of fixed duration
-
-    # Specify the folder location to store the clips
-    location = args.location
-    if not os.path.exists(location):
-        os.mkdir(location)
-
-    # Specify the project number of the koster lab
+    
+    # Connect to Zooniverse
     koster_project = auth_session(args.user, args.password)
 
-    # Create empty subject metadata to keep track of the clips generated
-    subject_metadata = {}
+    # Identify n number of clips that haven't been uploaded to Zooniverse 
+    clips_df = get_clips(args.n_clips, conn, args.video_interest)
 
-    # Generate one clip at the time, update the koster lab database and the subject_metadata
-    for clip in np.arange(0, video_duration, clip_length):
-        # Generate and store the clip
-        subject_filename = v_filename + "_" + str(int(clip)) + ".mp4"
-        fileoutput = location + os.sep + subject_filename
-        subprocess.call(
-            [
-                "ffmpeg",
-                "-ss",
-                str(clip),
-                "-t",
-                str(clip_length),
-                "-i",
-                video_path,
-                "-c",
-                "copy",
-                "-force_key_frames",
-                "1",
-                fileoutput,
-            ]
-        )
+    # Create the folder to store the clips if not exist
+    if not os.path.exists(args.clips_folder):
+        os.mkdir(args.clips_folder)
+     
+    # Extract the clips and store them in the folder
+    clips_df["clip_path"] = extract_clips(clips_df, args.clips_folder, clip_length)
+    
+ 
+    # Select koster db metadata associated with each clip
+    clips_df["clip_start_time"] = clips_df["pot_seconds"]
+    clips_df["clip_end_time"] = clips_df["pot_seconds"]+clip_length
+    clips_df["subject_type"] = "clip"
 
-        # Add clip information to the koster lab database
-        # clip_id =
-        filename = subject_filename
-        start_time = clip
-        end_time = clip + clip_length
-        clip_date = date.today().strftime("%d_%m_%Y")
+    clips_df = clips_df[
+        [
+            "clip_path",
+            "fpath",
+            "clip_start_time",
+            "clip_end_time",
+            "fps",
+            "movie_id",
+            "subject_type",
+        ]
+    ]
 
-        # Add clip information to the subject_metadata
-        subject_metadata[clip] = {
-            "filename": subject_filename,
-            "#start_time": start_time,
-            "#end_time": end_time,
-            "clip_date": clip_date,
-        }
+    # Save the df as the subject metadata
+    subject_metadata = clips_df.set_index('clip_path').to_dict('index')
 
-    print(
-        len(np.arange(0, video_duration, clip_length)),
-        " clips have been generated in ",
-        location,
-        ".",
-    )
+#      # Create a subjet set in Zooniverse to host the frames
+#     subject_set = SubjectSet()
 
-    # Create a new subject set (the Zooniverse dataset that will store the clips)
-    set_name = input("clips_" + date.today().strftime("%d_%m_%Y"))
-    previous_subjects = []
+#     subject_set.links.project = koster_project
+#     subject_set.display_name = "clips" + date.today().strftime("_%d_%m_%Y")
 
-    try:
-        # check if the subject set already exits
-        subject_set = SubjectSet.where(
-            project_id=koster_project.id, display_name=set_name
-        ).next()
-        print(
-            "You have chosen to upload ",
-            len(subject_metadata),
-            " files to an existing subject set",
-            set_name,
-        )
-        retry = input(
-            'Enter "n" to cancel this upload, any other key to continue' + "\n"
-        )
-        if retry.lower() == "n":
-            quit()
-        for subject in subject_set.subjects:
-            previous_subjects.append(subject.metadata["filename"])
-    except StopIteration:
-        print(
-            "You have chosen to upload ",
-            len(subject_metadata),
-            " files to an new subject set ",
-            set_name,
-        )
-        retry = input(
-            'Enter "n" to cancel this upload, any other key to continue' + "\n"
-        )
-        if retry.lower() == "n":
-            quit()
-        # create a new subject set for the new data and link it to the project above
-        subject_set = SubjectSet()
-        subject_set.links.project = koster_project
-        subject_set.display_name = set_name
-        subject_set.save()
+#     subject_set.save()
 
-    # Upload the clips to the project
-    print("Uploading subjects, this could take a while!")
-    new_subjects = 0
+#     print("Zooniverse subject set created")
 
-    for filename, metadata in subject_metadata.items():
-        try:
-            if filename not in previous_subjects:
-                subject = Subject()
-                subject.links.project = koster_project
-                subject.add_location(location + os.sep + filename)
-                subject.metadata.update(metadata)
-                subject.save()
-                subject_set.add(subject.id)
-                print(filename)
-                new_subjects += 1
-        except panoptes_client.panoptes.PanoptesAPIException:
-            print("An error occurred during the upload of ", filename)
-    print(new_subjects, "new subjects created and uploaded")
 
-    # test the validity of table entries
+#     # Upload frames to Zooniverse (with metadata)
+#     new_subjects = []
 
-    db_utils.test_table(clips, "clips")
-    db_utils.test_table(subjects, "subjects")
+#     for filename, metadata in subject_metadata.items():
+#         subject = Subject()
 
-    # update the tables (check these values)
+#         subject.links.project = koster_project
+#         subject.add_location(filename)
 
-    try:
-        db_utils.insert_many(conn, [tuple(i) for i in clips.values], "clips", 6)
-        db_utils.insert_many(conn, [tuple(i) for i in subjects.values], "subjects", 8)
-    except sqlite3.Error as e:
-        print(e)
+#         subject.metadata.update(metadata)
 
-    conn.commit()
+#         subject.save()
+#         new_subjects.append(subject)
 
-    # Generate a csv file with all the uploaded clips
-    uploaded = 0
-    with open(location + os.sep + "Uploaded subjects.csv", "wt") as file:
-        subject_set = SubjectSet.where(
-            project_id=koster_project.id, display_name=set_name
-        ).next()
-        for subject in subject_set.subjects:
-            uploaded += 1
-            file.write(subject.id + "," + list(subject.metadata.values())[0] + "\n")
+#     # Upload frames
+#     subject_set.add(new_subjects)
 
-        print(
-            uploaded,
-            " subjects found in the subject set, see the full list in Uploaded subjects.csv.",
-        )
-
+#     print("Subjects uploaded to Zooniverse")
 
 if __name__ == "__main__":
     main()
