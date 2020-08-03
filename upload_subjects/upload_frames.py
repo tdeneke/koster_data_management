@@ -1,6 +1,5 @@
 import argparse, os, cv2, re
 import utils.db_utils as db_utils
-import utils.clip_utils as clip_utils
 import pandas as pd
 import numpy as np
 import pims
