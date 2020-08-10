@@ -210,35 +210,35 @@ def main():
     # Save the df as the subject metadata
     subject_metadata = clips_df.set_index('clip_path').to_dict('index')
 
-#      # Create a subjet set in Zooniverse to host the frames
-#     subject_set = SubjectSet()
+    # Create a subjet set in Zooniverse to host the frames
+    subject_set = SubjectSet()
 
-#     subject_set.links.project = koster_project
-#     subject_set.display_name = "clips" + date.today().strftime("_%d_%m_%Y")
+    subject_set.links.project = koster_project
+    subject_set.display_name = "clips" + date.today().strftime("_%d_%b_%Y")
 
-#     subject_set.save()
+    subject_set.save()
 
-#     print("Zooniverse subject set created")
+    print("Zooniverse subject set created")
 
 
-#     # Upload frames to Zooniverse (with metadata)
-#     new_subjects = []
+    # Upload frames to Zooniverse (with metadata)
+    new_subjects = []
 
-#     for filename, metadata in subject_metadata.items():
-#         subject = Subject()
+    for filename, metadata in subject_metadata.items():
+        subject = Subject()
 
-#         subject.links.project = koster_project
-#         subject.add_location(filename)
+        subject.links.project = koster_project
+        subject.add_location(filename)
 
-#         subject.metadata.update(metadata)
+        subject.metadata.update(metadata)
 
-#         subject.save()
-#         new_subjects.append(subject)
+        subject.save()
+        new_subjects.append(subject)
 
-#     # Upload frames
-#     subject_set.add(new_subjects)
+    # Upload frames
+    subject_set.add(new_subjects)
 
-#     print("Subjects uploaded to Zooniverse")
+    print("Subjects uploaded to Zooniverse")
 
 if __name__ == "__main__":
     main()
