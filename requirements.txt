@@ -10,3 +10,4 @@ libmagic==1.0
 -e git+https://github.com/soft-matter/pims.git#egg=PIMS
 av==8.0.1
 jupyter
+folium
