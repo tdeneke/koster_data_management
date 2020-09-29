@@ -89,8 +89,7 @@ def process_manual_clips(meta_df, db_path):
 def clean_duplicates(subjects, duplicates_file_id):
     
     # Download the csv with information about duplicated subjects
-    dups_csv_resp = db_utils.download_csv_from_google_drive(duplicates_file_id)
-    dups_df = pd.read_csv(io.StringIO(dups_csv_resp.content.decode("utf-8")))
+    dups_df = db_utils.download_csv_from_google_drive(duplicates_file_id)
     
     # Include a column with unique ids for duplicated subjects 
     subjects = pd.merge(subjects, dups_df, how="left", left_on="subject_id", right_on="dupl_subject_id")

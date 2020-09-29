@@ -128,31 +128,17 @@ def unswedify(string):
 
 
 
-def download_csv_from_google_drive(id):
+def download_csv_from_google_drive(file_url):
 
     # Download the csv files stored in Google Drive with initial information about
     # the movies and the species
 
-    URL = "https://docs.google.com/uc?export=download"
-
-    session = requests.Session()
-
-    response = session.get(URL, params={"id": id}, stream=True)
-    token = get_confirm_token(response)
-
-    if token:
-        params = {"id": id, "confirm": token}
-        response = session.get(URL, params=params, stream=True)
-
-    return response
-
-
-def get_confirm_token(response):
-    for key, value in response.cookies.items():
-        if key.startswith("download_warning"):
-            return value
-
-    return None
+    file_id = file_url.split('/')[-2]
+    dwn_url='https://drive.google.com/uc?export=download&id=' + file_id
+    url = requests.get(dwn_url).text.encode("ISO-8859-1").decode()
+    csv_raw = io.StringIO(url)
+    dfs = pd.read_csv(csv_raw)
+    return dfs
 
 def find_duplicated_clips(conn):
     
@@ -176,8 +162,7 @@ def find_duplicated_clips(conn):
 def combine_duplicates(annot_df, duplicates_file_id):
     
     # Download the csv with information about duplicated subjects
-    dups_csv_resp = download_csv_from_google_drive(duplicates_file_id)
-    dups_df = pd.read_csv(io.StringIO(dups_csv_resp.content.decode("utf-8")))
+    dups_df = download_csv_from_google_drive(duplicates_file_id)
     
     # Include a column with unique ids for duplicated subjects 
     annot_df = pd.merge(annot_df, dups_df, how="left", left_on="subject_ids", right_on="dupl_subject_id")

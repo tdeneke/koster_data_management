@@ -17,8 +17,7 @@ def get_length(video_file):
 def add_movies(movies_file_id, db_path, movies_path):
 
     # Download the csv with movies information from the google drive
-    movies_csv_resp = db_utils.download_csv_from_google_drive(movies_file_id)
-    movies_df = pd.read_csv(io.StringIO(movies_csv_resp.content.decode("utf-8")))
+    movies_df = db_utils.download_csv_from_google_drive(movies_file_id)
 
     # Include server's path of the movie files
     movies_df["Fpath"] = movies_path + "/" + movies_df["FilenameCurrent"] + ".mov"
@@ -64,8 +63,7 @@ def add_movies(movies_file_id, db_path, movies_path):
 def add_species(species_file_id, db_path):
 
     # Download the csv with species information from the google drive
-    species_csv_resp = db_utils.download_csv_from_google_drive(species_file_id)
-    species_df = pd.read_csv(io.StringIO(species_csv_resp.content.decode("utf-8")))
+    species_df = db_utils.download_csv_from_google_drive(species_file_id)
 
     # Add values to species table
     db_utils.add_to_table(
