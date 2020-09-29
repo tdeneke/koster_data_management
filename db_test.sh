@@ -13,7 +13,7 @@ if [ $status -ne 0 ]; then
 fi
 
 # Populate static database tables
-python -Wignore static.py --species_file_id '1dnueH3BjJrMK8buVjfyFbxfu0E-5dX7Z' --movies_file_id '1LL-Ah_FIkBiGKEldYvuhNeL2NyOvKBip' --db_path $3 --movies_path $4
+python -Wignore static.py --species_file_id 'https://drive.google.com/file/d/1dnueH3BjJrMK8buVjfyFbxfu0E-5dX7Z/view?usp=sharing' --movies_file_id 'https://drive.google.com/file/d/1xYcmMUjAawnYIyti9QNTs-oBf8XshJvs/view?usp=sharing' --db_path $3 --movies_path $4
 status=$?
 if [ $status -ne 0 ]; then
   echo "Static tables setup failed: $status"
