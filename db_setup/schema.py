@@ -72,4 +72,18 @@ UNIQUE(species_id, x_position, y_position, width, height, subject_id)
 FOREIGN KEY (species_id) REFERENCES species (id),
 FOREIGN KEY (subject_id) REFERENCES subjects (id)
 );
+
+CREATE TABLE IF NOT EXISTS model_annotations
+(
+id integer PRIMARY KEY AUTOINCREMENT,
+frame_number integer NULL,
+version_ml integer NULL,
+species_id integer NULL,
+movie_id integer NULL,
+created_at datetime NULL,
+confidence integer NULL, 
+UNIQUE(frame_number, version_ml, movie_id, species_id)
+FOREIGN KEY (movie_id) REFERENCES movies (id),
+FOREIGN KEY (species_id) REFERENCES species (id)
+);
 """
