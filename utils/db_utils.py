@@ -103,7 +103,7 @@ def get_id(row, field_name, table_name, conn, conditions={"a": "=b"}):
 
     if isinstance(conditions, dict):
         condition_string = f" AND ".join(
-            [k + v[0] + f"{row[v[1:]]}" for k, v in conditions.items()]
+            [k + v[0] + f"{v[1:]}" for k, v in conditions.items()]
         )
     else:
         raise ValueError("Conditions should be specified as a dict, e.g. {'a', '=b'}")

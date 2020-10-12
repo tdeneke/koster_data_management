@@ -73,16 +73,32 @@ FOREIGN KEY (species_id) REFERENCES species (id),
 FOREIGN KEY (subject_id) REFERENCES subjects (id)
 );
 
+CREATE TABLE IF NOT EXISTS models
+(
+id integer PRIMARY KEY AUTOINCREMENT,
+config_file text NOT NULL,
+conf_thres real NOT NULL,
+img_size integer NOT NULL,
+iou_thres real NOT NULL,
+names_file text NOT NULL,
+weights_file text NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS model_annotations
 (
 id integer PRIMARY KEY AUTOINCREMENT,
 frame_number integer NULL,
-version_ml integer NULL,
+model_id integer NULL,
 species_id integer NULL,
 movie_id integer NULL,
 created_at datetime NULL,
+x_position integer NULL,
+y_position integer NULL,
+width integer NULL,
+height integer NULL,
 confidence integer NULL, 
-UNIQUE(frame_number, version_ml, movie_id, species_id)
+UNIQUE(frame_number, model_id, movie_id, species_id)
+FOREIGN KEY (model_id) REFERENCES models (id),
 FOREIGN KEY (movie_id) REFERENCES movies (id),
 FOREIGN KEY (species_id) REFERENCES species (id)
 );
