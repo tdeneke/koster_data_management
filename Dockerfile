@@ -14,9 +14,9 @@ RUN apt-get update && \
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
-ADD https://api.github.com/repos/ocean-data-factory-sweden/koster_lab_development/git/refs/heads/master version.json
-RUN git clone -b master https://github.com/ocean-data-factory-sweden/koster_lab_development.git
-WORKDIR /usr/src/app/koster_lab_development
+ADD https://api.github.com/repos/ocean-data-factory-sweden/koster_data_managemet/git/refs/heads/master version.json
+RUN git clone -b master https://github.com/ocean-data-factory-sweden/koster_data_management.git
+WORKDIR /usr/src/app/koster_data_management
 RUN pip3 install -r requirements.txt
-RUN export PYTHONPATH=$PYTHONPATH:/usr/src/app/koster_lab_development
+RUN export PYTHONPATH=$PYTHONPATH:/usr/src/app/koster_data_management
 
