@@ -2,7 +2,6 @@
 
 # Remove the demo database
 rm $3
-cd db_setup
 
 # Set up the database
 python -Wignore init.py --db_path $3
