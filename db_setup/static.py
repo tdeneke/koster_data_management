@@ -7,9 +7,10 @@ import utils.db_utils as db_utils
 
 def get_length(video_file):
     if os.path.isfile(video_file):
-        fps = int(cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FPS))
-        totalNoFrames = cv2.VideoCapture(video_file).get(cv2.CAP_PROP_FRAME_COUNT)
-        length = float(totalNoFrames) / float(fps)
+        cap = cv2.VideoCapture(video_file)
+        fps = cap.get(cv2.CAP_PROP_FPS)     
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        length = frame_count/fps
     else:
         length, fps = None, None
     return fps, length
