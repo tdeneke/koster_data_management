@@ -4,7 +4,7 @@
 # and add blurred cropped areas with overlay
 # onto original
 
-for name in *.mov; do
+for name in "$1"/*.mov; do
 	ffmpeg -i "$name" -filter_complex \
 	"[0:v]crop=iw:75:0:ih*(5/100),boxblur=luma_radius=5:chroma_radius=7:luma_power=1[b0]; \
 	 [0:v]crop=iw:75:0:ih*(80/100),boxblur=luma_radius=5:chroma_radius=7:luma_power=1[b1]; \
