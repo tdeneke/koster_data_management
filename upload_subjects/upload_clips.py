@@ -2,8 +2,7 @@ import argparse, os, cv2, re
 import utils.db_utils as db_utils
 import pandas as pd
 import numpy as np
-import math
-import subprocess
+import math, subprocess
 
 from datetime import date
 from utils.zooniverse_utils import auth_session
