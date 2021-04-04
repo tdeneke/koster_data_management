@@ -96,18 +96,25 @@ def get_clips(n_clips, clip_length, conn, video_list, num_each):
     )
 
     # Sample up to n clips
-    new_clips_df = potential_clips_df.drop_duplicates(subset=['fpath', 'pot_seconds'])
-    
+    new_clips_df = potential_clips_df.drop_duplicates(subset=["fpath", "pot_seconds"])
+
     if len(num_each) > 0:
         sample_df = pd.DataFrame()
         for i, name in enumerate(potential_clips_df.movie_id.unique()):
-            sample_df = pd.concat([sample_df, new_clips_df[new_clips_df['movie_id'] == name].sample(n=int(num_each[i]))])
+            sample_df = pd.concat(
+                [
+                    sample_df,
+                    new_clips_df[new_clips_df["movie_id"] == name].sample(
+                        n=int(num_each[i])
+                    ),
+                ]
+            )
         new_clips_df = sample_df
     else:
         new_clips_df = potential_clips_df.sample(n=n_clips)
 
     # Select only relevant columns
-    clips_df = new_clips_df[["movie_id", "fps", "fpath", "pot_seconds"]]  
+    clips_df = new_clips_df[["movie_id", "fps", "fpath", "pot_seconds"]]
 
     return clips_df
 
@@ -145,8 +152,8 @@ def extract_clips(df, clips_folder, clip_length):
                     movie,
                     "-t",
                     str(clip_length),
-                    #"-c",
-                    #"copy",
+                    # "-c",
+                    # "copy",
                     "-force_key_frames",
                     "1",
                     str(movie_df.iloc[i]["clip_path"]),
@@ -227,7 +234,9 @@ def main():
     koster_project = auth_session(args.user, args.password)
 
     # Identify n number of clips that haven't been uploaded to Zooniverse
-    clips_df = get_clips(args.n_clips, args.clip_length, conn, args.video_list, args.num_each)
+    clips_df = get_clips(
+        args.n_clips, args.clip_length, conn, args.video_list, args.num_each
+    )
 
     # Create the folder to store the clips if not exist
     if not os.path.exists(args.clips_folder):
@@ -281,8 +290,6 @@ def main():
 
         subject.save()
         new_subjects.append(subject)
-        #if len(new_subjects) == 1:
-            #subject_set.add(new_subjects)
 
     # Upload frames
     subject_set.add(new_subjects)
