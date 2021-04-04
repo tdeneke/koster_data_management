@@ -4,7 +4,16 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 import utils.db_utils as db_utils
-from static import get_length
+
+def get_length(video_file):
+    if os.path.isfile(video_file):
+        cap = cv2.VideoCapture(video_file)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        length = frame_count/fps
+    else:
+        length, fps = None, None
+    return fps, length
 
 def add_new_movies(movies_file_id, db_path, movies_path):
 
@@ -12,7 +21,7 @@ def add_new_movies(movies_file_id, db_path, movies_path):
     movies_df = db_utils.download_csv_from_google_drive(movies_file_id)
 
     # Include server's path of the movie files
-    movies_df["Fpath"] = movies_path + "/" + movies_df["FilenameCurrent"] + ".mov"
+    movies_df["Fpath"] = movies_path + "/" + movies_df["FilenameCurrent"]
 
     # Standarise the filename
     movies_df["FilenameCurrent"] = movies_df["FilenameCurrent"].str.normalize("NFD")

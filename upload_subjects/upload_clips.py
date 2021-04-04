@@ -25,13 +25,13 @@ def expand_list(df, list_column, new_column):
     return expanded_df
 
 
-def get_clips(n_clips, conn, video_list):
+def get_clips(n_clips, clip_length, conn, video_list, num_each):
 
     # Get information of the movies to upload new clips from
     if len(video_list) > 0:
         # Select only the movies of interest if specified
         available_movies_df = pd.read_sql_query(
-            f"SELECT id, fps, duration, fpath FROM movies WHERE id IN {video_list}",
+            f"SELECT id, fps, duration, fpath FROM movies WHERE id IN {tuple([int(i) for i in video_list])}",
             conn,
         )
     else:
@@ -96,10 +96,18 @@ def get_clips(n_clips, conn, video_list):
     )
 
     # Sample up to n clips
-    new_clips_df = potential_clips_df.sample(n=n_clips)
+    new_clips_df = potential_clips_df.drop_duplicates(subset=['fpath', 'pot_seconds'])
+    
+    if len(num_each) > 0:
+        sample_df = pd.DataFrame()
+        for i, name in enumerate(potential_clips_df.movie_id.unique()):
+            sample_df = pd.concat([sample_df, new_clips_df[new_clips_df['movie_id'] == name].sample(n=int(num_each[i]))])
+        new_clips_df = sample_df
+    else:
+        new_clips_df = potential_clips_df.sample(n=n_clips)
 
-    # Select only relevant clomuns
-    clips_df = new_clips_df[["movie_id", "fps", "fpath", "pot_seconds"]]
+    # Select only relevant columns
+    clips_df = new_clips_df[["movie_id", "fps", "fpath", "pot_seconds"]]  
 
     return clips_df
 
@@ -108,7 +116,9 @@ def get_clips(n_clips, conn, video_list):
 def extract_clips(df, clips_folder, clip_length):
 
     # Get movies filenames from their path
-    df["movie_filename"] = df["fpath"].str.split("/").str[-1].str.replace(".mov", "")
+    df["movie_filename"] = df["fpath"].str.split("/").str[-1].str.replace(".mp4", "")
+
+    print(df.movie_filename)
 
     # Set the filename of the clips
     df["clip_path"] = (
@@ -123,7 +133,7 @@ def extract_clips(df, clips_folder, clip_length):
     )
 
     # Read each movie and extract the clips
-    for movie in df.fpath:
+    for movie in df.fpath.unique():
         movie_df = df[df["fpath"] == movie]
         for i in range(len(movie_df.index)):
             subprocess.call(
@@ -131,12 +141,12 @@ def extract_clips(df, clips_folder, clip_length):
                     "ffmpeg",
                     "-ss",
                     str(movie_df.iloc[i]["pot_seconds"]),
-                    "-t",
-                    str(clip_length),
                     "-i",
                     movie,
-                    "-c",
-                    "copy",
+                    "-t",
+                    str(clip_length),
+                    #"-c",
+                    #"copy",
                     "-force_key_frames",
                     "1",
                     str(movie_df.iloc[i]["clip_path"]),
@@ -195,6 +205,14 @@ def main():
         nargs="+",
         required=False,
     )
+    parser.add_argument(
+        "-neach",
+        "--num_each",
+        help="Number of clips from each video",
+        nargs="+",
+        required=False,
+        default=[],
+    )
 
     args = parser.parse_args()
 
@@ -209,24 +227,26 @@ def main():
     koster_project = auth_session(args.user, args.password)
 
     # Identify n number of clips that haven't been uploaded to Zooniverse
-    clips_df = get_clips(args.n_clips, conn, args.video_list)
+    clips_df = get_clips(args.n_clips, args.clip_length, conn, args.video_list, args.num_each)
 
     # Create the folder to store the clips if not exist
     if not os.path.exists(args.clips_folder):
         os.mkdir(args.clips_folder)
 
     # Extract the clips and store them in the folder
-    clips_df["clip_path"] = extract_clips(clips_df, args.clips_folder, clip_length)
+    clips_df["clip_path"] = extract_clips(clips_df, args.clips_folder, args.clip_length)
 
     # Select koster db metadata associated with each clip
     clips_df["clip_start_time"] = clips_df["pot_seconds"]
-    clips_df["clip_end_time"] = clips_df["pot_seconds"] + clip_length
+    clips_df["clip_end_time"] = clips_df["pot_seconds"] + args.clip_length
     clips_df["subject_type"] = "clip"
+
+    clips_df["filename"] = clips_df["fpath"]
 
     clips_df = clips_df[
         [
             "clip_path",
-            "fpath",
+            "filename",
             "clip_start_time",
             "clip_end_time",
             "fps",
@@ -261,6 +281,8 @@ def main():
 
         subject.save()
         new_subjects.append(subject)
+        #if len(new_subjects) == 1:
+            #subject_set.add(new_subjects)
 
     # Upload frames
     subject_set.add(new_subjects)
