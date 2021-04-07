@@ -42,6 +42,8 @@ def get_species_frames(species_id, conn, n_frames):
 
     # Get the filepath and fps of the original movies
     f_paths = pd.read_sql_query(f"SELECT id, fpath, fps FROM movies", conn)
+    # TODO: Fix fps figures for old movies
+    f_paths["fps"] = 25.0
 
     # Ensure swedish characters don't cause issues
     f_paths["fpath"] = f_paths["fpath"].apply(
@@ -110,14 +112,7 @@ def extract_frames(df, frames_folder):
 
     # Save the frame as matrix    
     df["frames"] = df[["fpath", "frame_number", "fps"]].apply(
-        lambda x: video_dict[x["fpath"]][
-            np.arange(
-                int(x["frame_number"]),
-                int(x["frame_number"])
-                    + int(x["fps"]),
-                int(x["fps"]),
-            )
-        ],
+        lambda x: video_dict[x["fpath"]][int(x["frame_number"])],
         1,
     )
     

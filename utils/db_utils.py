@@ -122,7 +122,7 @@ def unswedify(string):
     return (
         string.encode("utf-8")
         .replace(b"\xc3\xa4", b"a\xcc\x88")
-        .replace(b"\xc3\xb6", b"a\xcc\x88")
+        .replace(b"\xc3\xb6", b"o\xcc\x88")
         .decode("utf-8")
     )
 
