@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import argparse, os, cv2, re
 import utils.db_utils as db_utils
 import pandas as pd
@@ -14,6 +15,17 @@ from panoptes_client import (
     Panoptes,
 )
 
+
+def unswedify(string):
+    """Convert ä and ö to utf-8"""
+    return (
+        string.encode("utf-8")
+        .replace(b"\xc3\xa4", b"a\xcc\x88")
+        .replace(b"\xc3\xb6", b"o\xcc\x88")
+        .decode("utf-8")
+    )
+
+
 # Function to identify up to n number of frames per classified clip
 # that contains species of interest after the first time seen
 def get_species_frames(species_id, conn, n_frames):
@@ -26,7 +38,7 @@ def get_species_frames(species_id, conn, n_frames):
 
     # Add species id to the df
     frames_df["frame_exp_sp_id"] = species_id
-    
+
     # Get start time of the clips and ids of the original movies
     (frames_df["clip_start_time"], frames_df["movie_id"],) = list(
         zip(
@@ -38,88 +50,92 @@ def get_species_frames(species_id, conn, n_frames):
     )
 
     # Identify the second of the original movie when the species first appears
-    frames_df["first_seen_movie"] = frames_df["clip_start_time"] + frames_df["first_seen"]
+    frames_df["first_seen_movie"] = (
+        frames_df["clip_start_time"] + frames_df["first_seen"]
+    )
 
     # Get the filepath and fps of the original movies
     f_paths = pd.read_sql_query(f"SELECT id, fpath, fps FROM movies", conn)
-    # TODO: Fix fps figures for old movies
+
+    # TODO: Fix fps figures for old movies and paths
     f_paths["fps"] = 25.0
+    f_paths["fpath"] = "/cephyr/NOBACKUP/groups/snic2021-6-9" + f_paths["fpath"]
 
     # Ensure swedish characters don't cause issues
     f_paths["fpath"] = f_paths["fpath"].apply(
-        lambda x: str(x) if os.path.isfile(str(x)) else db_utils.unswedify(str(x))
+        lambda x: str(x) if os.path.isfile(str(x)) else unswedify(str(x))
     )
-    
     # Include movies' filepath and fps to the df
     frames_df = frames_df.merge(f_paths, left_on="movie_id", right_on="id")
-    
+
     # Specify if original movies can be found
-    frames_df['exists'] = frames_df['fpath'].map(os.path.isfile)
-    
+    # frames_df["fpath"] = frames_df["fpath"].apply(lambda x: x.encode('utf-8'))
+    frames_df["exists"] = frames_df["fpath"].map(os.path.isfile)
+
     if len(frames_df[~frames_df.exists]) > 0:
         print(
             f"There are {len(frames_df) - frames_df.exists.sum()} out of {len(frames_df)} frames with a missing movie"
         )
-        
+
     # Select only frames from movies that can be found
     frames_df = frames_df[frames_df.exists]
-    
+
     # Identify the ordinal number of the frames expected to be extracted
-    frames_df["frame_number"] = frames_df[
-        ["first_seen_movie", "fps"]
-    ].apply(
+    frames_df["frame_number"] = frames_df[["first_seen_movie", "fps"]].apply(
         lambda x: [
-            int((x["first_seen_movie"] + j) * x["fps"])
-            for j in range(n_frames)
+            int((x["first_seen_movie"] + j) * x["fps"]) for j in range(n_frames)
         ],
         1,
     )
-    
-    # Reshape df to have each frame as rows
-    lst_col = 'frame_number'
 
-    frames_df = pd.DataFrame({
-        col:np.repeat(frames_df[col].values, frames_df[lst_col].str.len())
-        for col in frames_df.columns.difference([lst_col])
-    }).assign(**{lst_col:np.concatenate(frames_df[lst_col].values)})[frames_df.columns.tolist()]
-    
+    # Reshape df to have each frame as rows
+    lst_col = "frame_number"
+
+    frames_df = pd.DataFrame(
+        {
+            col: np.repeat(frames_df[col].values, frames_df[lst_col].str.len())
+            for col in frames_df.columns.difference([lst_col])
+        }
+    ).assign(**{lst_col: np.concatenate(frames_df[lst_col].values)})[
+        frames_df.columns.tolist()
+    ]
+
     # Drop unnecessary columns
     frames_df.drop(["subject_id"], inplace=True, axis=1)
-    
+
     return frames_df
-    
-# Function to extract frames 
-def extract_frames(df, frames_folder):    
+
+
+# Function to extract frames
+def extract_frames(df, frames_folder):
 
     # Get movies filenames from their path
-    df["movie_filename"] = df["fpath"].str.split('/').str[-1].str.replace(".mov", "")
-    
-    
-    
+    df["movie_filename"] = df["fpath"].str.split("/").str[-1].str.replace(".mov", "")
+
     # Set the filename of the frames
-    df["frame_path"] = (frames_folder
-                      + df["movie_filename"].astype(str)
-                      + "_frame_"
-                      + df["frame_number"].astype(str)
-                      + "_"
-                      + df["frame_exp_sp_id"].astype(str)
-                      + ".jpg"
-                     )
-    
-    
+    df["frame_path"] = (
+        frames_folder
+        + df["movie_filename"].astype(str)
+        + "_frame_"
+        + df["frame_number"].astype(str)
+        + "_"
+        + df["frame_exp_sp_id"].astype(str)
+        + ".jpg"
+    )
+
     # Read all original movies
     video_dict = {k: pims.Video(k) for k in df["fpath"].unique()}
 
-    # Save the frame as matrix    
-    df["frames"] = df[["fpath", "frame_number", "fps"]].apply(
+    # Save the frame as matrix
+    df["frames"] = df[["fpath", "frame_number"]].apply(
         lambda x: video_dict[x["fpath"]][int(x["frame_number"])],
         1,
     )
-    
+
     # Extract and save frames
-    for frame, filename in zip(df["frames"].explode(), df["frame_path"].explode()):
+    for frame, filename in zip(df["frames"], df["frame_path"]):
         Image.fromarray(frame).save(f"{filename}")
-        
+
     print("Frames extracted successfully")
     return df["frame_path"]
 
@@ -182,7 +198,7 @@ def main():
         f"SELECT id FROM species WHERE label='{args.species}'", conn
     ).values[0][0]
 
-    # Identify n number of frames per classified clip that contains species of interest 
+    # Identify n number of frames per classified clip that contains species of interest
     sp_frames_df = get_species_frames(species_id, conn, args.n_frames)
 
     # Get info of frames already uploaded
@@ -211,15 +227,15 @@ def main():
             "There are no subjects to upload, this may be because all of the subjects have already been uploaded"
         )
         raise
-     
+
     else:
         # Create the folder to store the frames if not exist
         if not os.path.exists(args.frames_folder):
             os.mkdir(args.frames_folder)
-        
+
         # Extract the frames and save them
         sp_frames_df["frame_path"] = extract_frames(sp_frames_df, args.frames_folder)
- 
+
         # Select koster db metadata associated with each frame
         sp_frames_df["label"] = args.species
         sp_frames_df["subject_type"] = "frame"
@@ -227,7 +243,6 @@ def main():
         sp_frames_df = sp_frames_df[
             [
                 "frame_path",
-                "fpath",
                 "frame_number",
                 "fps",
                 "movie_id",
@@ -236,11 +251,11 @@ def main():
                 "subject_type",
             ]
         ]
-        
+
         # Save the df as the subject metadata
-        subject_metadata = sp_frames_df.set_index('frame_path').to_dict('index')
-        
-         # Create a subjet set in Zooniverse to host the frames
+        subject_metadata = sp_frames_df.set_index("frame_path").to_dict("index")
+
+        # Create a subjet set in Zooniverse to host the frames
         subject_set = SubjectSet()
 
         subject_set.links.project = koster_project
@@ -249,8 +264,7 @@ def main():
         subject_set.save()
 
         print("Zooniverse subject set created")
-        
-        
+
         # Upload frames to Zooniverse (with metadata)
         new_subjects = []
 
@@ -267,7 +281,7 @@ def main():
 
         # Upload frames
         subject_set.add(new_subjects)
-        
+
         print("Subjects uploaded to Zooniverse")
 
 
