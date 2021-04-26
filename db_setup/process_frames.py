@@ -10,6 +10,7 @@ from sklearn.cluster import DBSCAN
 import utils.db_utils as db_utils
 from utils.zooniverse_utils import auth_session
 
+
 def bb_iou(boxA, boxB):
 
     # Compute edges
@@ -143,7 +144,7 @@ def main():
         type=str,
         required=False,
     )
-    
+
     args = parser.parse_args()
 
     project = auth_session(args.user, args.password)
@@ -158,9 +159,13 @@ def main():
             "user_name",
             "subject_ids",
             "subject_data",
-            "classification_id",
+            "subject_set_id",
+            "classifications_count" "classification_id",
             "workflow_id",
             "workflow_version",
+            "retired_at",
+            "retirement_reason",
+            "created_at",
             "annotations",
         ],
     )
@@ -170,22 +175,92 @@ def main():
         (rawdata.workflow_id >= args.zoo_workflow)
         & (rawdata.workflow_version >= args.zoo_workflow_version)
     ].reset_index()
-          
+
     # Clear duplicated subjects
     if args.duplicates_file_id:
         w2_data = db_utils.combine_duplicates(w2_data, args.duplicates_file_id)
-    
+
+    ## Check if subjects have been uploaded
+    # Get species id for each species
+    conn = db_utils.create_connection(args.db_path)
+
+    # Get subject table
+    uploaded_subjects = pd.read_sql_query(
+        "SELECT id FROM subjects WHERE subject_type='frame'", conn
+    )
+
+    # Add frame subjects to db that have not been uploaded
+    new_subjects = w2_data[~w2_data.subject_ids.isin(uploaded_subjects)]
+    if len(new_subjects) > 0:
+        species_df = pd.read_sql_query("SELECT id, label FROM species")
+        species_df = species_df.rename(columns={"id": "frame_exp_sp_id"})
+        new_subjects = pd.merge(
+            new_subjects, species_df, how="left", left_on="label", right_on="label"
+        )
+        new_subjects["subject_type"] = "frame"
+        movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
+        movies_df = movies_df.rename(
+            columns={"id": "movie_id", "filename": "movie_filename"}
+        )
+        new_subjects["movie_filename"] = meta_df["movie_filename"] = meta_df.apply(
+            lambda x: x["filename"]
+            .replace("_" + x["frame_number"], "")
+            .replace(".jpg", ""),
+            axis=1,
+        )
+        new_subjects = pd.merge(
+            new_subjects, movies_df, how="left", on="movie_filename"
+        )
+        # Set irrelevant columns to None
+        new_subjects["clip_start_time"] = None
+        new_subjects["clip_end_time"] = None
+        new_subjects = new_subjects[
+            [
+                "id",
+                "subject_type",
+                "filename",
+                "clip_start_time",
+                "clip_end_time",
+                "frame_exp_sp_id",
+                "frame_number",
+                "workflow_id",
+                "subject_set_id",
+                "classifications_count",
+                "retired_at",
+                "retirement_reason",
+                "created_at",
+                "movie_id",
+            ]
+        ]
+        db_utils.test_table(new_subjects, "subjects", keys=["movie_id"])
+
+        # Add values to subjects
+        db_utils.add_to_table(
+            args.db_path, "subjects", [tuple(i) for i in new_subjects.values], 14
+        )
+
     # Calculate the number of users that classified each subject
-    w2_data["n_users"] = w2_data.groupby("subject_ids")[
-        "classification_id"
-    ].transform("nunique")
+    w2_data["n_users"] = w2_data.groupby("subject_ids")["classification_id"].transform(
+        "nunique"
+    )
 
     # Select frames with at least n different user classifications
     w2_data = w2_data[w2_data.n_users >= args.n_users]
-    
+
     # Drop workflow and n_users columns
-    w2_data = w2_data.drop(columns=["workflow_id", "workflow_version","n_users"])
-    
+    w2_data = w2_data.drop(
+        columns=[
+            "workflow_id",
+            "workflow_version",
+            "n_users",
+            "subject_set_id",
+            "classifications_count",
+            "retired_at",
+            "retirement_reason",
+            "created_at",
+        ]
+    )
+
     # Extract the video filename and annotation details
     w2_data[["filename", "frame_number", "label"]] = pd.DataFrame(
         w2_data["subject_data"]
@@ -292,7 +367,15 @@ def main():
         subject_ids = [i[8] for i in group.values[indices]]
 
         for ix, box in zip(subject_ids, new_group):
-            new_rows.append((filename, class_name, start_frame, ix,) + tuple(box))
+            new_rows.append(
+                (
+                    filename,
+                    class_name,
+                    start_frame,
+                    ix,
+                )
+                + tuple(box)
+            )
 
     w2_annotations = pd.DataFrame(
         new_rows,
