@@ -28,7 +28,7 @@ if [ $status -ne 0 ]; then
 fi
 
 # Aggregate clip classifications from Zooniverse
-python -Wignore process_clips.py -u $1 -p $2 -db $3
+python -Wignore process_clips.py -u $1 -p $2 -db $3 -du $8
 status=$?
 if [ $status -ne 0 ]; then
   echo "Clip aggregation failed: $status"
@@ -36,7 +36,7 @@ if [ $status -ne 0 ]; then
 fi
 
 # Aggregate frame annotations from Zooniverse 
-python -Wignore process_frames.py -u $1 -p $2 -db $3 -obj $5 -eps $6 -iua $7
+python -Wignore process_frames.py -u $1 -p $2 -db $3 -obj $5 -eps $6 -iua $7 -du $8 -nu $9
 status=$?
 if [ $status -ne 0 ]; then
   echo "Frame aggregation failed: $status"

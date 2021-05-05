@@ -187,6 +187,8 @@ def main():
 
     # Add frame subjects to db that have not been uploaded
     new_subjects = w2_data[(~w2_data.subject_ids.isin(uploaded_subjects))]
+    new_subjects["subject_dict"] = new_subjects["subject_data"].apply(lambda x: [v["retired"] for k,v in json.loads(x).items()][0])
+    new_subjects = new_subjects[~rawdata.subject_dict.isnull()].drop("subject_dict", 1)
 
     if len(new_subjects) > 0:
 
@@ -232,7 +234,6 @@ def main():
                         "retirement_reason": v["retired"]["retirement_reason"],
                     }
                     for k, v in json.loads(x).items()
-                    if v["retired"]
                 ][0]
             )
             .tolist()

@@ -89,7 +89,7 @@ def main():
     
     # Filter clip classifications
     class_df = class_df[
-        (class_df.workflow_id >= args.zoo_workflow)
+        (class_df.workflow_id == args.zoo_workflow)
         & (class_df.workflow_version >= args.zoo_workflow_version)
     ].reset_index()
     
