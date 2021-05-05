@@ -10,7 +10,6 @@ from sklearn.cluster import DBSCAN
 import utils.db_utils as db_utils
 from utils.zooniverse_utils import auth_session
 
-
 def bb_iou(boxA, boxB):
 
     # Compute edges
@@ -159,12 +158,9 @@ def main():
             "user_name",
             "subject_ids",
             "subject_data",
-            "subject_set_id",
-            "classifications_count" "classification_id",
+            "classification_id",
             "workflow_id",
             "workflow_version",
-            "retired_at",
-            "retirement_reason",
             "created_at",
             "annotations",
         ],
@@ -172,7 +168,7 @@ def main():
 
     # Filter w2 classifications
     w2_data = rawdata[
-        (rawdata.workflow_id >= args.zoo_workflow)
+        (rawdata.workflow_id == args.zoo_workflow)
         & (rawdata.workflow_version >= args.zoo_workflow_version)
     ].reset_index()
 
@@ -190,33 +186,75 @@ def main():
     )
 
     # Add frame subjects to db that have not been uploaded
-    new_subjects = w2_data[~w2_data.subject_ids.isin(uploaded_subjects)]
+    new_subjects = w2_data[(~w2_data.subject_ids.isin(uploaded_subjects))]
+
     if len(new_subjects) > 0:
-        species_df = pd.read_sql_query("SELECT id, label FROM species")
-        species_df = species_df.rename(columns={"id": "frame_exp_sp_id"})
-        new_subjects = pd.merge(
-            new_subjects, species_df, how="left", left_on="label", right_on="label"
+
+        # Get info of subjects uploaded to the project
+        export = project.get_export("subjects")
+
+        # Save the subjects info as pandas data frame
+        subjects_df = pd.read_csv(
+            io.StringIO(export.content.decode("utf-8")),
+            usecols=["subject_id", "subject_set_id", "created_at"],
         )
+
+        new_subjects = pd.merge(
+            new_subjects,
+            subjects_df,
+            how="left",
+            left_on="subject_ids",
+            right_on="subject_id",
+        )
+
+        # Extract the video filename and annotation details
+        new_subjects[
+            [
+                "frame_number",
+                "frame_exp_sp_id",
+                "movie_id",
+                "classifications_count",
+                "created_at",
+                "retired_at",
+                "retirement_reason",
+            ]
+        ] = pd.DataFrame(
+            new_subjects["subject_data"]
+            .apply(
+                lambda x: [
+                    {
+                        "frame_number": v["frame_number"],
+                        "frame_exp_sp_id": v["frame_exp_sp_id"],
+                        "movie_id": v["movie_id"],
+                        "classifications_count": v["retired"]["classifications_count"],
+                        "created_at": v["retired"]["created_at"],
+                        "retired_at": v["retired"]["retired_at"],
+                        "retirement_reason": v["retired"]["retirement_reason"],
+                    }
+                    for k, v in json.loads(x).items()
+                    if v["retired"]
+                ][0]
+            )
+            .tolist()
+        )
+
         new_subjects["subject_type"] = "frame"
         movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
         movies_df = movies_df.rename(
             columns={"id": "movie_id", "filename": "movie_filename"}
         )
-        new_subjects["movie_filename"] = meta_df["movie_filename"] = meta_df.apply(
-            lambda x: x["filename"]
-            .replace("_" + x["frame_number"], "")
-            .replace(".jpg", ""),
+        new_subjects = pd.merge(new_subjects, movies_df, how="left", on="movie_id")
+
+        new_subjects["filename"] = new_subjects.apply(
+            lambda x: x["movie_filename"] + "_" + str(x["frame_number"]) + ".jpg",
             axis=1,
-        )
-        new_subjects = pd.merge(
-            new_subjects, movies_df, how="left", on="movie_filename"
         )
         # Set irrelevant columns to None
         new_subjects["clip_start_time"] = None
         new_subjects["clip_end_time"] = None
         new_subjects = new_subjects[
             [
-                "id",
+                "subject_ids",
                 "subject_type",
                 "filename",
                 "clip_start_time",
@@ -232,6 +270,7 @@ def main():
                 "movie_id",
             ]
         ]
+        new_subjects = new_subjects.drop_duplicates(subset="subject_ids")
         db_utils.test_table(new_subjects, "subjects", keys=["movie_id"])
 
         # Add values to subjects
@@ -253,32 +292,51 @@ def main():
             "workflow_id",
             "workflow_version",
             "n_users",
-            "subject_set_id",
-            "classifications_count",
-            "retired_at",
-            "retirement_reason",
             "created_at",
         ]
     )
 
     # Extract the video filename and annotation details
-    w2_data[["filename", "frame_number", "label"]] = pd.DataFrame(
+    subject_data_df = pd.DataFrame(
         w2_data["subject_data"]
         .apply(
             lambda x: [
                 {
-                    "filename": v["movie_filepath"],
+                    "movie_id": v["movie_id"],
                     "frame_number": v["frame_number"],
                     "label": v["label"],
                 }
-                for k, v in json.loads(x).items()
-            ][0]
+                for k, v in json.loads(x).items()  # if v['retired']
+            ][0],
+            1,
         )
         .tolist()
     )
 
+    w2_data = pd.concat(
+        [w2_data.reset_index().drop("index", 1), subject_data_df],
+        axis=1,
+        ignore_index=True,
+    )
+    w2_data = w2_data[w2_data.columns[1:]]
+    w2_data.columns = [
+        "classification_id",
+        "user_name",
+        "annotations",
+        "subject_data",
+        "subject_ids",
+        "movie_id",
+        "frame_number",
+        "label",
+    ]
+
+    movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
+    movies_df = movies_df.rename(columns={"id": "movie_id"})
+
+    w2_data = pd.merge(w2_data, movies_df, how="left", on="movie_id")
+
     # Convert to dictionary entries
-    w2_data["filename"] = w2_data["filename"].apply(lambda x: {"filename": x})
+    w2_data["movie_id"] = w2_data["movie_id"].apply(lambda x: {"movie_id": x})
     w2_data["frame_number"] = w2_data["frame_number"].apply(
         lambda x: {"frame_number": x}
     )
@@ -291,11 +349,11 @@ def main():
 
     # Extract annotation metadata
     w2_data["annotation"] = w2_data[
-        ["filename", "frame_number", "label", "annotation", "user_name", "subject_id"]
+        ["movie_id", "frame_number", "label", "annotation", "user_name", "subject_id"]
     ].apply(
         lambda x: [
             OrderedDict(
-                list(x["filename"].items())
+                list(x["movie_id"].items())
                 + list(x["frame_number"].items())
                 + list(x["label"].items())
                 + list(x["annotation"][i].items())
@@ -307,7 +365,7 @@ def main():
         if len(x["annotation"]) > 0
         else [
             OrderedDict(
-                list(x["filename"].items())
+                list(x["movie_id"].items())
                 + list(x["frame_number"].items())
                 + list(x["label"].items())
                 + list(x["user_name"].items())
@@ -322,8 +380,8 @@ def main():
         OrderedDict(
             {
                 "user": i["user_name"],
-                "filename": i["filename"],
-                "class_name": i["label"],
+                "movie_id": i["movie_id"],
+                "label": i["label"],
                 "start_frame": i["frame_number"],
                 "x": int(i["x"]) if "x" in i else None,
                 "y": int(i["y"]) if "y" in i else None,
@@ -339,17 +397,16 @@ def main():
     # Get prepared annotations
     w2_full = pd.DataFrame(ds)
     w2_annotations = w2_full[w2_full["x"].notnull()]
+
     new_rows = []
     final_indices = []
-    for name, group in w2_annotations.groupby(
-        ["filename", "class_name", "start_frame"]
-    ):
-
-        filename, class_name, start_frame = name
+    for name, group in w2_annotations.groupby(["movie_id", "label", "start_frame"]):
+        print(name)
+        movie_id, label, start_frame = name
 
         total_users = w2_full[
-            (w2_full.filename == filename)
-            & (w2_full.class_name == class_name)
+            (w2_full.movie_id == movie_id)
+            & (w2_full.label == label)
             & (w2_full.start_frame == start_frame)
         ]["user"].nunique()
 
@@ -369,8 +426,8 @@ def main():
         for ix, box in zip(subject_ids, new_group):
             new_rows.append(
                 (
-                    filename,
-                    class_name,
+                    movie_id,
+                    label,
                     start_frame,
                     ix,
                 )
@@ -380,8 +437,8 @@ def main():
     w2_annotations = pd.DataFrame(
         new_rows,
         columns=[
-            "filename",
-            "class_name",
+            "movie_id",
+            "label",
             "start_frame",
             "subject_id",
             "x",
@@ -395,9 +452,8 @@ def main():
     conn = db_utils.create_connection(args.db_path)
 
     # Get subject table
-    subjects_df = pd.read_sql_query(
-        "SELECT id, frame_exp_sp_id, movie_id FROM subjects", conn
-    )
+    subjects_df = pd.read_sql_query("SELECT id, frame_exp_sp_id FROM subjects", conn)
+
     subjects_df = subjects_df.rename(
         columns={"id": "subject_id", "frame_exp_sp_id": "species_id"}
     )
@@ -412,7 +468,7 @@ def main():
     )
 
     # Filter out invalid movies
-    w2_annotations = w2_annotations[w2_annotations.movie_id.notnull()][
+    w2_annotations = w2_annotations[w2_annotations["movie_id"].notnull()][
         ["species_id", "x", "y", "w", "h", "subject_id"]
     ]
 
