@@ -166,6 +166,8 @@ def main():
     auto_subjects_df = pd.concat([auto_subjects_df, auto_subjects_meta], axis=1)
 
     # TODO Check movie_ids of automatically uploaded subjects are correct
+    # Restrict movie_ids to original movies
+    auto_subjects_df = auto_subjects_df[auto_subjects_df["movie_id"] <= 60]
 
     ### Update subjects uploaded manually ###
 
@@ -229,6 +231,11 @@ def main():
             "movie_id",
         ]
     ]
+
+    # Ensure that subject_ids are not duplicated by workflow
+    subjects = subjects.drop_duplicates(subset='id')
+
+    print(len(subjects))
 
     # Test table validity
     db_utils.test_table(subjects, "subjects", keys=["movie_id"])

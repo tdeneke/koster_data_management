@@ -57,9 +57,11 @@ def get_species_frames(species_id, conn, n_frames):
     # Get the filepath and fps of the original movies
     f_paths = pd.read_sql_query(f"SELECT id, fpath, fps FROM movies", conn)
 
-    # TODO: Fix fps figures for old movies and paths
-    f_paths["fps"] = 25.0
-    f_paths["fpath"] = "/cephyr/NOBACKUP/groups/snic2021-6-9" + f_paths["fpath"]
+    # TODO: Fix fps figures for old movies and paths. Right now the path configuration is done manually to fix old copies
+    f_paths["fps"] = f_paths["fps"].apply(lambda x: 25.0 if np.isnan(x) else x, 1)
+    extensions = f_paths["fpath"].apply(lambda x: '' if len(os.path.splitext(x))>1 and os.path.splitext(x)[1]!='' else '.mov', 1)
+    f_paths["fpath"] = f_paths["fpath"].apply(lambda x: x.replace("/cephyr/NOBACKUP/groups/snic2021-6-9/", "").replace("/uploads/", ""), 1)
+    f_paths["fpath"] = "/cephyr/NOBACKUP/groups/snic2021-6-9/movies/" + f_paths["fpath"] + extensions
 
     # Ensure swedish characters don't cause issues
     f_paths["fpath"] = f_paths["fpath"].apply(

@@ -1,4 +1,4 @@
-import os, cv2, csv, json, sys, io
+import os, cv2, csv, json, sys, io, re
 import operator, argparse, requests
 import pandas as pd
 import sqlite3
@@ -49,3 +49,24 @@ def add_new_movies(movies_file_id, db_path, movies_path):
     db_utils.add_to_table(
         db_path, "movies", [(None,) + tuple(i) for i in movies_db.values], 8
     )
+
+def add_species(species_file_id, db_path):
+
+    # Download the csv with species information from the google drive
+    species_df = db_utils.download_csv_from_google_drive(species_file_id)
+
+    # Create connection to db
+    conn = db_utils.create_connection(db_path)
+
+    # Retrieve the id and label from the species table
+    uploaded_species = pd.read_sql_query("SELECT id, label FROM species", conn)
+    uploaded_species = uploaded_species.rename(columns={"id": "species_id"})
+
+    species_df["Fixed_Name"] = species_df["Name"].apply(lambda x: re.sub(r"[()\s]", "", x).lower(), 1)
+    species_df = species_df[~species_df["Fixed_Name"].isin([re.sub(r"[()\s]", "", i).lower() for i in uploaded_species["label"].unique()])]
+
+    # Add values to species table
+    db_utils.add_to_table(
+        db_path, "species", [(None,) + tuple([i]) for i in species_df["Name"].values], 2
+    )
+

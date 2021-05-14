@@ -79,6 +79,7 @@ def main():
         io.StringIO(export.content.decode("utf-8")),
         usecols=[
             "subject_ids",
+            "subject_data",
             "classification_id",
             "workflow_id",
             "workflow_version",
@@ -92,9 +93,118 @@ def main():
         (class_df.workflow_id == args.zoo_workflow)
         & (class_df.workflow_version >= args.zoo_workflow_version)
     ].reset_index()
+
+        ## Check if subjects have been uploaded
+    # Get species id for each species
+    conn = db_utils.create_connection(args.db_path)
+
+    # Get subject table
+    uploaded_subjects = pd.read_sql_query(
+        "SELECT id FROM subjects WHERE subject_type='clip'", conn
+    )
+
+    # Add frame subjects to db that have not been uploaded
+    new_subjects = class_df[(~class_df.subject_ids.isin(uploaded_subjects))]
+    new_subjects["subject_dict"] = new_subjects["subject_data"].apply(lambda x: [v["retired"] for k,v in json.loads(x).items()][0])
+    new_subjects = new_subjects[~new_subjects['subject_dict'].isnull()].drop("subject_dict", 1)
+
+    if len(new_subjects) > 0 and args.zoo_workflow not in [11767]:
+
+        # Get info of subjects uploaded to the project
+        export = project.get_export("subjects")
+
+        # Save the subjects info as pandas data frame
+        subjects_df = pd.read_csv(
+            io.StringIO(export.content.decode("utf-8")),
+            usecols=["subject_id", "subject_set_id", "created_at"],
+        )
+
+        new_subjects = pd.merge(
+            new_subjects,
+            subjects_df,
+            how="left",
+            left_on="subject_ids",
+            right_on="subject_id",
+        )
+
+        # Get movies table
+        movies_df = pd.read_sql_query(
+        "SELECT id, filename FROM movies", conn
+        )
+
+        # Extract the video filename and annotation details
+        new_subjects[
+            [
+                "clip_start_time",
+                "clip_end_time", 
+                "movie_id",
+                "classifications_count",
+                "created_at",
+                "retired_at",
+                "retirement_reason",
+            ]
+        ] = pd.DataFrame(
+            new_subjects["subject_data"]
+            .apply(
+                lambda x: [
+                    {
+                        "clip_start_time": v["clip_start_time"] if "clip_start_time" in v else (v["X.start_time"] if "X.start_time" in v else v["#start_time"]),
+                        "clip_end_time": v["clip_end_time"] if "clip_end_time" in v else (v["X.end_time"] if "X.end_time" in v else v["#end_time"]),
+                        "movie_id": v["movie_id"] if "movie_id" in v else movies_df[movies_df.filename == v["filename"].rsplit('_', 1)[0]]['id'].values[0],
+                        "classifications_count": v["retired"]["classifications_count"],
+                        "created_at": v["retired"]["created_at"],
+                        "retired_at": v["retired"]["retired_at"],
+                        "retirement_reason": v["retired"]["retirement_reason"],
+                    }
+                    for k, v in json.loads(x).items()
+                ][0] if len(json.loads(x).items()) > 0 else {}
+            )
+            .tolist()
+        )
+
+        new_subjects["subject_type"] = "clip"
+        movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
+        movies_df = movies_df.rename(
+            columns={"id": "movie_id", "filename": "movie_filename"}
+        )
+        new_subjects = pd.merge(new_subjects, movies_df, how="left", on="movie_id")
+
+        new_subjects["filename"] = new_subjects.apply(
+            lambda x: x["movie_filename"] + "_" + str(x["clip_start_time"]) + ".mp4",
+            axis=1,
+        )
+        # Set irrelevant columns to None
+        new_subjects["frame_exp_sp_id"] = None
+        new_subjects["frame_number"] = None
+        new_subjects = new_subjects[
+            [
+                "subject_ids",
+                "subject_type",
+                "filename",
+                "clip_start_time",
+                "clip_end_time",
+                "frame_exp_sp_id",
+                "frame_number",
+                "workflow_id",
+                "subject_set_id",
+                "classifications_count",
+                "retired_at",
+                "retirement_reason",
+                "created_at",
+                "movie_id",
+            ]
+        ]
+        new_subjects = new_subjects.drop_duplicates(subset="subject_ids")
+        db_utils.test_table(new_subjects, "subjects", keys=["movie_id"])
+
+        # Add values to subjects
+        db_utils.add_to_table(
+            args.db_path, "subjects", [tuple(i) for i in new_subjects.values], 14
+        )
     
     # Drop worflow columns
     class_df = class_df.drop(columns=["workflow_id", "workflow_version"])
+
     
     # Create an empty list
     rows_list = []
@@ -201,11 +311,16 @@ def main():
     )
 
     # Set the columns in the right order
-    annot_df = annot_df[["id", "species_id", "how_many", "first_seen", "subject_id",]]
+    annot_df = annot_df[["species_id", "how_many", "first_seen", "subject_id"]]
+
+    clipsdf = pd.read_sql_query("SELECT id FROM subjects", conn)
+
+    # Check that the subject exists
+    annot_df = annot_df[annot_df["subject_id"].isin(clipsdf["id"].unique())]
 
     # Add annotations to the agg_annotations_clip table
     db_utils.add_to_table(
-        args.db_path, "agg_annotations_clip", [tuple(i) for i in annot_df.values], 5
+        args.db_path, "agg_annotations_clip", [(None,) + tuple(i) for i in annot_df.values], 5
     )
 
 

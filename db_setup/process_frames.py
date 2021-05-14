@@ -176,6 +176,9 @@ def main():
     if args.duplicates_file_id:
         w2_data = db_utils.combine_duplicates(w2_data, args.duplicates_file_id)
 
+    #Drop NaN columns
+    w2_data = w2_data.drop(['dupl_subject_id', 'single_subject_id'], 1)
+
     ## Check if subjects have been uploaded
     # Get species id for each species
     conn = db_utils.create_connection(args.db_path)
@@ -188,9 +191,9 @@ def main():
     # Add frame subjects to db that have not been uploaded
     new_subjects = w2_data[(~w2_data.subject_ids.isin(uploaded_subjects))]
     new_subjects["subject_dict"] = new_subjects["subject_data"].apply(lambda x: [v["retired"] for k,v in json.loads(x).items()][0])
-    new_subjects = new_subjects[~rawdata.subject_dict.isnull()].drop("subject_dict", 1)
+    new_subjects = new_subjects[~new_subjects.subject_dict.isnull()].drop("subject_dict", 1)
 
-    if len(new_subjects) > 0:
+    if len(new_subjects) > 0 and args.zoo_workflow_version > 30:
 
         # Get info of subjects uploaded to the project
         export = project.get_export("subjects")
@@ -320,6 +323,8 @@ def main():
         ignore_index=True,
     )
     w2_data = w2_data[w2_data.columns[1:]]
+    pd.set_option('display.max_columns', None)
+
     w2_data.columns = [
         "classification_id",
         "user_name",
@@ -402,7 +407,6 @@ def main():
     new_rows = []
     final_indices = []
     for name, group in w2_annotations.groupby(["movie_id", "label", "start_frame"]):
-        print(name)
         movie_id, label, start_frame = name
 
         total_users = w2_full[
