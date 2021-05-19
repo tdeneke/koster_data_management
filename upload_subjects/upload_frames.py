@@ -60,7 +60,7 @@ def get_species_frames(species_id, conn, n_frames):
     # TODO: Fix fps figures for old movies and paths. Right now the path configuration is done manually to fix old copies
     f_paths["fps"] = f_paths["fps"].apply(lambda x: 25.0 if np.isnan(x) else x, 1)
     extensions = f_paths["fpath"].apply(lambda x: '' if len(os.path.splitext(x))>1 and os.path.splitext(x)[1]!='' else '.mov', 1)
-    f_paths["fpath"] = f_paths["fpath"].apply(lambda x: x.replace("/cephyr/NOBACKUP/groups/snic2021-6-9/", "").replace("/uploads/", ""), 1)
+    f_paths["fpath"] = f_paths["fpath"].apply(lambda x: os.path.basename(x), 1)
     f_paths["fpath"] = "/cephyr/NOBACKUP/groups/snic2021-6-9/movies/" + f_paths["fpath"] + extensions
 
     # Ensure swedish characters don't cause issues
@@ -237,6 +237,7 @@ def main():
 
         # Extract the frames and save them
         sp_frames_df["frame_path"] = extract_frames(sp_frames_df, args.frames_folder)
+        sp_frames_df = sp_frames_df.drop_duplicates(subset=['frame_path'])
 
         # Select koster db metadata associated with each frame
         sp_frames_df["label"] = args.species

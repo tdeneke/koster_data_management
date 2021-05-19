@@ -157,7 +157,7 @@ def main():
     first_auto_upload = "2020-05-29 00:00:00 UTC"
 
     # Select automatically uploaded frames
-    auto_subjects_df = subjects_df[subjects_df["created_at"] > first_auto_upload]
+    auto_subjects_df = subjects_df[(subjects_df["created_at"] > first_auto_upload)]
 
     # Extract metadata from automatically uploaded frames
     auto_subjects_df, auto_subjects_meta = extract_metadata(auto_subjects_df)
@@ -234,8 +234,6 @@ def main():
 
     # Ensure that subject_ids are not duplicated by workflow
     subjects = subjects.drop_duplicates(subset='id')
-
-    print(len(subjects))
 
     # Test table validity
     db_utils.test_table(subjects, "subjects", keys=["movie_id"])
