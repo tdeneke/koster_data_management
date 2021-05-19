@@ -197,7 +197,7 @@ def main():
 
     # Get id of species of interest
     species_id = pd.read_sql_query(
-        f"SELECT id FROM species WHERE label='{args.species}'", conn
+        f'SELECT id FROM species WHERE label="{args.species}"', conn
     ).values[0][0]
 
     # Identify n number of frames per classified clip that contains species of interest
