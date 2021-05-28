@@ -3,6 +3,7 @@ import utils.db_utils as db_utils
 import pandas as pd
 import numpy as np
 import math, subprocess
+from pathlib import Path
 
 from datetime import date
 from utils.zooniverse_utils import auth_session
@@ -266,6 +267,9 @@ def main():
 
     # Save the df as the subject metadata
     subject_metadata = clips_df.set_index("clip_path").to_dict("index")
+
+    # File size check (Zooniverse constraint)
+    assert sum(clips_df["filename"].apply(lambda x: Path(x).stat().st_size, 1) <= 2000000) == len(clips_df), "Some of your clips are larger than 2MB and may fail to upload, please shorten your clip length"
 
     # Create a subjet set in Zooniverse to host the frames
     subject_set = SubjectSet()
