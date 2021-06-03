@@ -19,5 +19,7 @@ ADD https://api.github.com/repos/ocean-data-factory-sweden/koster_data_managemen
 RUN git clone -b master https://github.com/ocean-data-factory-sweden/koster_data_management.git
 WORKDIR /usr/src/app/koster_data_management
 RUN pip3 install -r requirements.txt
+RUN jupyter nbextension install --user --py widgetsnbextension
+RUN jupyter nbextension enable --user --py widgetsnbextension
 ENV PYTHONPATH=$PYTHONPATH:/usr/src/app/koster_data_management
 

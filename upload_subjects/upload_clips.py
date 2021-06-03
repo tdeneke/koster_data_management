@@ -1,4 +1,4 @@
-import argparse, os, cv2, re
+import argparse, os, cv2, re, ast
 import utils.db_utils as db_utils
 import pandas as pd
 import numpy as np
@@ -13,6 +13,12 @@ from panoptes_client import (
     Project,
     Panoptes,
 )
+
+def arg_as_list(s):                                                            
+    v = ast.literal_eval(s)                                                    
+    if type(v) is not list:                                                    
+        raise argparse.ArgumentTypeError("Argument \"%s\" is not a list" % (s))
+    return v
 
 
 def expand_list(df, list_column, new_column):
@@ -210,14 +216,14 @@ def main():
         "-vlist",
         "--video_list",
         help="List of videos of interest to get the clips from",
-        nargs="+",
+        type=arg_as_list,
         required=False,
     )
     parser.add_argument(
         "-neach",
         "--num_each",
         help="Number of clips from each video",
-        nargs="+",
+        type=arg_as_list,
         required=False,
         default=[],
     )
