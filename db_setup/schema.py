@@ -1,15 +1,17 @@
 sql = """CREATE TABLE IF NOT EXISTS sites
 (
-id integer PRIMARY KEY AUTOINCREMENT,
-name text NULL,
-coord_lat varchar(255) NULL,
-coord_lon varchar(255) NULL,
-protected varchar(255) NULL
+id integer PRIMARY KEY,
+siteName text NULL,
+decimalLatitude varchar(255) NULL,
+decimalLongitude varchar(255) NULL,
+geodeticDatum varchar(255) NULL,
+countryCode varchar(255) NULL,
+UNIQUE (siteName)
 );
 
 CREATE TABLE IF NOT EXISTS movies
 (
-id integer PRIMARY KEY AUTOINCREMENT,
+id integer PRIMARY KEY,
 filename text NOT NULL,
 created_on datetime NULL,
 fps integer NULL,
@@ -44,6 +46,9 @@ CREATE TABLE IF NOT EXISTS species
 (
 id integer PRIMARY KEY AUTOINCREMENT,
 label text NOT NULL,
+scientificName text NOT NULL,
+taxonRank text NOT NULL,
+kingdom text NOT NULL,
 UNIQUE (label)
 );
 
