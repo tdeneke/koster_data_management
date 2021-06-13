@@ -44,7 +44,7 @@ FOREIGN KEY (movie_id) REFERENCES movies (id)
 
 CREATE TABLE IF NOT EXISTS species
 (
-id integer PRIMARY KEY AUTOINCREMENT,
+id integer PRIMARY KEY,
 label text NOT NULL,
 scientificName text NOT NULL,
 taxonRank text NOT NULL,

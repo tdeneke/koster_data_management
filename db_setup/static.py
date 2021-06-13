@@ -17,10 +17,12 @@ def get_length(video_file):
     return fps, length
 
 
-def add_sites(sites_csv):
+def add_sites(sites_csv, db_path):
 
     # Load the csv with sites information
     sites_df = db_utils.download_csv_from_google_drive(sites_csv)
+    
+    print(sites_df.head())
     
     # Select relevant fields
     sites_df = sites_df[
@@ -28,15 +30,14 @@ def add_sites(sites_csv):
     ]
     
     ### TODO add a roadblock to prevent empty lat/long/datum/countrycode
-   
 
     # Add values to sites table
     db_utils.add_to_table(
-        db_path, "sites", [tuple(i) for i in sites_db.values], 6
+        db_path, "sites", [tuple(i) for i in sites_df.values], 6
     )
 
     
-def add_movies(movies_csv, movies_path):
+def add_movies(movies_csv, movies_path, db_path):
 
     # Load the csv with movies information
     movies_df = db_utils.download_csv_from_google_drive(movies_csv)
@@ -51,15 +52,20 @@ def add_movies(movies_csv, movies_path):
     movies_df["filename"] = movies_df["filename"].str.normalize("NFD")
     
     # Ensure all videos have fps and duration information
-    if movies_df["fps", "duration"].isna() == True:
+    if movies_df["fps"].isna().any()|movies_df["duration"].isna().any():
             
             # Select only those movies with missing fps or duration
-            missing_fps_movies = movies_df["fps", "duration"].isna()
+            missing_fps_movies = movies_df[movies_df[["fps", "duration"]].isna().any(axis=1)]
             
             # Prevent missing fps and duration information
             if len(missing_fps_movies[~missing_fps_movies.exists]) > 0:
                 print(
-                    f"There are {len(missing_fps_movies) - missing_fps_movies.exists.sum()} out of {len(missing_fps_movies)} movies missing from the server without fps and duration information"
+                    f"There are {len(missing_fps_movies) - missing_fps_movies.exists.sum()} out of {len(missing_fps_movies)} movies missing from the server without fps and/or duration information"
+                )
+                
+                
+                print(
+                    f"The movie filenames are {missing_fps_movies[~missing_fps_movies.exists].filename.tolist()}"
                 )
 
                 return
@@ -79,8 +85,11 @@ def add_movies(movies_csv, movies_path):
     #except ValueError:
     #    print("Invalid eventDate column")
 
+    # Connect to koster database
+    conn = db_utils.create_connection(db_path)
+    
     # Reference movies with their respective sites
-    sites_df = pd.read_sql_query("SELECT id, name FROM sites", conn)
+    sites_df = pd.read_sql_query("SELECT id, siteName FROM sites", conn)
     sites_df = sites_df.rename(columns={"id": "Site_id"})
 
     movies_df = pd.merge(
@@ -95,7 +104,7 @@ def add_movies(movies_csv, movies_path):
 
     # Add values to movies table
     db_utils.add_to_table(
-        db_path, "movies", [ tuple(i) for i in movies_db.values], 8
+        db_path, "movies", [tuple(i) for i in movies_db.values], 8
     )
 
 
@@ -105,13 +114,14 @@ def add_species(species_csv, db_path):
     species_df = db_utils.download_csv_from_google_drive(species_csv)
     
     # Select relevant fields
-    species_df = sites_df[
+    species_df = species_df[
         ["koster_species_id", "commonName", "scientificName", "taxonRank", "kingdom"]
     ]
     
+    print(species_df.tail())
     # Add values to species table
     db_utils.add_to_table(
-        db_path, "species", [tuple([i]) for i in species_df.values], 5
+        db_path, "species", [tuple(i) for i in species_df.values], 5
     )
 
 
@@ -146,15 +156,19 @@ def main():
         help="Absolute path to the movie files",
         default=r"/uploads",
     )
+    parser.add_argument(
+        "-db",
+        "--db_path",
+        type=str,
+        help="the absolute path to the database file",
+        default=r"koster_lab.db",
+    )
 
     args = parser.parse_args()
-
-    # Connect to koster database
-    conn = db_utils.create_connection("../koster_lab.db")
     
-    add_sites(args.sites_csv)
-    add_movies(args.movies_csv, args.movies_path)
-    add_species(args.species_csv)
+    add_sites(args.sites_csv, args.db_path)
+    add_movies(args.movies_csv, args.movies_path, args.db_path)
+    add_species(args.species_csv, args.db_path)
 
 
 if __name__ == "__main__":

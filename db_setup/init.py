@@ -14,7 +14,6 @@ def main():
         type=str,
         help="the absolute path to the database file",
         default=r"koster_lab.db",
-        required=True,
     )
     args = p.parse_args()
 
