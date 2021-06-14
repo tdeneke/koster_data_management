@@ -6,8 +6,12 @@
 *.mov
 *.mpeg
 
+# Database initial files
+*.csv
+
 # System extensions
 .DS_Store
 
 # Folder containing video clips
 zooniverse_scripts/clips/
+
