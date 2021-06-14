@@ -22,8 +22,6 @@ def add_sites(sites_csv, db_path):
     # Load the csv with sites information
     sites_df = db_utils.download_csv_from_google_drive(sites_csv)
     
-    print(sites_df.head())
-    
     # Select relevant fields
     sites_df = sites_df[
         ["koster_site_id", "siteName", "decimalLatitude", "decimalLongitude", "geodeticDatum", "countryCode"]
@@ -60,15 +58,10 @@ def add_movies(movies_csv, movies_path, db_path):
             # Prevent missing fps and duration information
             if len(missing_fps_movies[~missing_fps_movies.exists]) > 0:
                 print(
-                    f"There are {len(missing_fps_movies) - missing_fps_movies.exists.sum()} out of {len(missing_fps_movies)} movies missing from the server without fps and/or duration information"
+                    f"There are {len(missing_fps_movies) - missing_fps_movies.exists.sum()} out of {len(missing_fps_movies)} movies missing from the server without fps and/or duration information. The movie filenames are {missing_fps_movies[~missing_fps_movies.exists].filename.tolist()}"
                 )
                 
-                
-                print(
-                    f"The movie filenames are {missing_fps_movies[~missing_fps_movies.exists].filename.tolist()}"
-                )
-
-                return
+                raise
             
             else: 
                 # Calculate the fps and length of the original movies
@@ -118,7 +111,6 @@ def add_species(species_csv, db_path):
         ["koster_species_id", "commonName", "scientificName", "taxonRank", "kingdom"]
     ]
     
-    print(species_df.tail())
     # Add values to species table
     db_utils.add_to_table(
         db_path, "species", [tuple(i) for i in species_df.values], 5

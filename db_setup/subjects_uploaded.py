@@ -24,7 +24,53 @@ def extract_metadata(subj_df):
     return subj_df, meta_df
 
 
-# Function to get the movie_ids based on movie filenames
+# Function to process subjects uploaded automatically
+def auto_subjects(subjects_df, auto_date):
+    
+    # Select automatically uploaded frames
+    auto_subjects_df = subjects_df[(subjects_df["created_at"] > auto_date)]
+
+    # Extract metadata from automatically uploaded subjects
+    auto_subjects_df, auto_subjects_meta = extract_metadata(auto_subjects_df)
+    
+    # Combine metadata info with the subjects df
+    auto_subjects_df = pd.concat([auto_subjects_df, auto_subjects_meta], axis=1)
+    
+    return auto_subjects_df
+    
+    
+# Function to process subjects uploaded manually
+def manual_subjects(subjects_df, manual_date, auto_date):
+    
+    # Select clips uploaded manually
+    man_clips_df = (
+        subjects_df[
+            (subjects_df["metadata"].str.contains(".mp4"))
+            & (
+                subjects_df["created_at"].between(
+                    manual_date, auto_date
+                )
+            )
+        ]
+        .reset_index(drop=True)
+        .reset_index()
+    )
+
+    # Specify the type of subject
+    man_clips_df["subject_type"] = "clip"
+
+    # Extract metadata from manually uploaded clips
+    man_clips_df, man_clips_meta = extract_metadata(man_clips_df)
+
+    # Process the metadata of manually uploaded clips
+    man_clips_meta = process_manual_clips(man_clips_meta)
+
+    # Combine metadata info with the subjects df
+    man_clips_df = pd.concat([man_clips_df, man_clips_meta], axis=1)
+    
+    return man_clips_df
+    
+    # Function to get the movie_ids based on movie filenames
 def get_movies_id(df, db_path):
 
     # Create connection to db
@@ -35,18 +81,31 @@ def get_movies_id(df, db_path):
     movies_df = movies_df.rename(
         columns={"id": "movie_id", "filename": "movie_filename"}
     )
+
+    # Check all the movies have a unique ID
+    df_unique = df.movie_filename.unique()
+    movies_df_unique = movies_df.movie_filename.unique()
+    
+    diff_filenames = set(df_unique).difference(movies_df_unique)
+    
+    if diff_filenames:
+        print(
+            f"There are clip subjects that don't have movie_id. The movie filenames are {diff_filenames}"
+        )
+        
+        raise
     
     # Reference the manually uploaded subjects with the movies table
     df = pd.merge(df, movies_df, how="left", on="movie_filename")
 
     # Drop the movie_filename column
-    df = df.drop(columns=["movie_filename",])
+    df = df.drop(columns=["movie_filename"])
 
     return df
 
 
 # Function to process the metadata of clips that were uploaded manually
-def process_manual_clips(meta_df, db_path):
+def process_manual_clips(meta_df):
 
     # Select the filename of the clips and remove extension type
     clip_filenames = meta_df["filename"].str.replace(".mp4", "")
@@ -59,7 +118,7 @@ def process_manual_clips(meta_df, db_path):
 
     # Extract the filename of the original movie
     meta_df["movie_filename"] = meta_df.apply(
-        lambda x: x["filename"].replace("_" + x["clip_start_time"], "").replace(".mp4", ""), axis=1
+        lambda x: x["filename"].replace("_" + x["clip_start_time"], "").replace(".mp4", ".mov"), axis=1
     )
   
     # Get the end time of clips in relation to the original movie
@@ -72,24 +131,15 @@ def process_manual_clips(meta_df, db_path):
     meta_df = meta_df[
         ["filename", "movie_filename", "clip_start_time", "clip_end_time"]
     ]
-
-    # Include movie_ids to the metadata
-    meta_df = get_movies_id(meta_df, db_path)
-    
-    if meta_df.movie_id.isnull().values.any():
-        print(
-            "There are clip subjects that don't have movie_id"
-        )
-        raise
         
     return meta_df
 
 
 # Function to select the first subject of those that are duplicated
-def clean_duplicates(subjects, duplicates_file_id):
+def clean_duplicates(subjects, duplicates_csv):
     
     # Download the csv with information about duplicated subjects
-    dups_df = db_utils.download_csv_from_google_drive(duplicates_file_id)
+    dups_df = db_utils.download_csv_from_google_drive(duplicates_csv)
     
     # Include a column with unique ids for duplicated subjects 
     subjects = pd.merge(subjects, dups_df, how="left", left_on="subject_id", right_on="dupl_subject_id")
@@ -110,7 +160,7 @@ def main():
         "--user", "-u", help="Zooniverse username", type=str, required=True
     )
     parser.add_argument(
-        "--password", "-p", help="Zooniverse password", type=str, required=True
+        "--passw", "-p", help="Zooniverse password", type=str, required=True
     )
     parser.add_argument(
         "-db",
@@ -118,20 +168,19 @@ def main():
         type=str,
         help="the absolute path to the database file",
         default=r"koster_lab.db",
-        required=True,
     )
     parser.add_argument(
         "-du",
-        "--duplicates_file_id",
-        help="Google drive id of list of duplicated subjects",
+        "--duplicates_csv",
+        help="Filepath of the csv file with info of duplicated subjects",
         type=str,
-        required=False,
+        required=True,
     )
 
     args = parser.parse_args()
-
+    
     # Connect to the Zooniverse project
-    project = auth_session(args.user, args.password)
+    project = auth_session(args.user, args.passw)
 
     # Get info of subjects uploaded to the project
     export = project.get_export("subjects")
@@ -151,66 +200,33 @@ def main():
         ],
     )
 
-    ### Update subjects uploaded automatically ###
+    ### Update subjects automatically and manually uploaded separately ###
 
     # Specify the date when the metadata of subjects uploaded matches schema.py
-    first_auto_upload = "2020-05-29 00:00:00 UTC"
-
-    # Select automatically uploaded frames
-    auto_subjects_df = subjects_df[(subjects_df["created_at"] > first_auto_upload)]
-
-    # Extract metadata from automatically uploaded frames
-    auto_subjects_df, auto_subjects_meta = extract_metadata(auto_subjects_df)
-
-    # Combine metadata info with the subjects df
-    auto_subjects_df = pd.concat([auto_subjects_df, auto_subjects_meta], axis=1)
-
-    # TODO Check movie_ids of automatically uploaded subjects are correct
-    # Restrict movie_ids to original movies
-    auto_subjects_df = auto_subjects_df[auto_subjects_df["movie_id"] <= 60]
-
-    ### Update subjects uploaded manually ###
-
+    auto_date = "2020-05-29 00:00:00 UTC"
+    
     # Specify the starting date when clips were manually uploaded
-    first_manual_upload = "2019-11-17 00:00:00 UTC"
+    manual_date = "2019-11-17 00:00:00 UTC"
+    
+    # Select automatically uploaded subjects
+    auto_subjects_df = auto_subjects(subjects_df, auto_date = auto_date)
 
-    # Select clips uploaded manually
-    man_clips_df = (
-        subjects_df[
-            (subjects_df["metadata"].str.contains(".mp4"))
-            & (
-                subjects_df["created_at"].between(
-                    first_manual_upload, first_auto_upload
-                )
-            )
-        ]
-        .reset_index(drop=True)
-        .reset_index()
-    )
+    # Select manually uploaded subjects
+    manual_subjects_df = manual_subjects(subjects_df, manual_date = manual_date, auto_date = auto_date)
 
-    # Specify the type of subject
-    man_clips_df["subject_type"] = "clip"
-
-    # Extract metadata from manually uploaded clips
-    man_clips_df, man_clips_meta = extract_metadata(man_clips_df)
-
-    # Process the metadata of manually uploaded clips
-    man_clips_meta = process_manual_clips(man_clips_meta, args.db_path)
-
-    # Combine metadata info with the subjects df
-    man_clips_df = pd.concat([man_clips_df, man_clips_meta], axis=1)
-
+    # Include movie_ids to the metadata
+    manual_subjects_df = get_movies_id(manual_subjects_df, args.db_path)
+    
     # Combine all uploaded subjects
-    subjects = pd.merge(man_clips_df, auto_subjects_df, how="outer")
+    subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
 
     # Clear duplicated subjects
-    if args.duplicates_file_id:
-        subjects = clean_duplicates(subjects, args.duplicates_file_id)
+    subjects = clean_duplicates(subjects, args.duplicates_csv)
     
     ### Update subjects table ###
     
     # Set subject_id information as id
-    subjects = subjects.rename(columns={"subject_id": "id",})
+    subjects = subjects.rename(columns={"subject_id": "id"})
 
     # Set the columns in the right order
     subjects = subjects[
@@ -234,7 +250,7 @@ def main():
 
     # Ensure that subject_ids are not duplicated by workflow
     subjects = subjects.drop_duplicates(subset='id')
-
+    
     # Test table validity
     db_utils.test_table(subjects, "subjects", keys=["movie_id"])
 
@@ -243,6 +259,7 @@ def main():
         args.db_path, "subjects", [tuple(i) for i in subjects.values], 14
     )
 
+    
 
 if __name__ == "__main__":
     main()
