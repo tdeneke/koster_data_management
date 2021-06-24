@@ -67,9 +67,13 @@ def add_movies(movies_csv, movies_path, db_path):
                 # Calculate the fps and length of the original movies
                 movies_df[["fps", "duration"]] = pd.DataFrame(missing_fps_movies["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
             
+                # TODO update the movies.csv file with the new fps and duration information
+                
                 print(
                     f" The fps and duration of {len(missing_fps_movies)} movies have been succesfully added"
                 )
+                
+                
     
     
     # Ensure date is ISO 8601:2004(E) compatible
@@ -125,21 +129,21 @@ def main():
         "-sit",
         help="Filepath of the csv file with info about the sites",
         type=str,
-        default=r"db_csv_info/sites_koster.csv",
+        default=r"../db_starter/db_csv_info/sites_koster.csv",
     )
     parser.add_argument(
         "--movies_csv",
         "-mov",
         help="Filepath of the csv file with info about the movies",
         type=str,
-        default=r"db_csv_info/movies_koster.csv",
+        default=r"../db_starter/db_csv_info/movies_koster.csv",
     )
     parser.add_argument(
         "--species_csv",
         "-sp",
         help="Filepath of the csv file with info about the species",
         type=str,
-        default=r"db_csv_info/species_koster.csv",
+        default=r"../db_starter/db_csv_info/species_koster.csv",
     )
     parser.add_argument(
         "-mp",

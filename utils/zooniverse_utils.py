@@ -3,7 +3,7 @@ from panoptes_client import (
     Subject,
     Project,
     Panoptes,
-)  # needed to upload clips to Zooniverse
+)
 
 
 class AuthenticationError(Exception):

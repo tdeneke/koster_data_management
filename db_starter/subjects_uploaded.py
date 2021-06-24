@@ -174,7 +174,7 @@ def main():
         "--duplicates_csv",
         help="Filepath of the csv file with info of duplicated subjects",
         type=str,
-        default=r"db_csv_info/duplicated_subjects.csv",
+        default=r"../db_starter/db_csv_info/duplicated_subjects.csv",
     )
 
     args = parser.parse_args()

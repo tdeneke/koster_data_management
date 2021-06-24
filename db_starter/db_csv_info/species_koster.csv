@@ -1,0 +1,67 @@
+koster_species_id,commonName,scientificName,taxonRank,kingdom
+1,Fan-shaped sponge,Phakellia ventilabrum,species,Animalia
+2,Football sponge,Geodia barretti,species,Animalia
+3,Sponge (any species),Porifera,phylum,Animalia
+4,Dead man's fingers,Alcyonium digitatum,species,Animalia
+5,Deeplet sea anemone,Bolocera tuediae,species,Animalia
+6,Common sea pen,Pennatula phosphorea,species,Animalia
+7,Tall sea pen,Funiculina quadrangularis,species,Animalia
+8,Deep water coral,Desmophyllum pertusum,species,Animalia
+9,Coral (any species),Anthozoa,class,Animalia
+10,Northern shrimp,Pandalus borealis,species,Animalia
+11,Great spider crab,Hyas araneus,species,Animalia
+12,Deep sea king crab,Lithodes maja,species,Animalia
+13,Norway lobster,Nephrops norvegicus,species,Animalia
+14,Crustacean (any species),Crustacea,subphylum,Animalia
+15,Black brittle star,Ophiocomina nigra,species,Animalia
+16,Common sunstar,Crossaster papposus,species,Animalia
+17,Cushin star,Porania pulvillus,species,Animalia
+18,Common sea urchin,Echinus esculentus,species,Animalia
+19,Sugar starfish,Luidia ciliaris,species,Animalia
+20,Rosy feather star,Antedon bifida,species,Animalia
+21,Echinoderm (any species),Echinodermata,phylum,Animalia
+22,File clam,Acesta excavata,species,Animalia
+23,Bivalves (any species),Bivalvia,class,Animalia
+24,Gastropods (any species),Gastropoda,class,Animalia
+25,Fish (any species),Vertebrata,subphylum,Animalia
+26,Human objects,Not applicable,Not applicable,Not applicable
+27,Nothing here,Not applicable,Not applicable,Not applicable
+28,Prawn cracker sponge,Axinella infundibuliformis,species,Animalia
+29,Red sea fan,Swiftia rosea,species,Animalia
+30,Rough sea anemone,Actinostola callosa,species,Animalia
+31,Dahlia anemone,Urticina felina,species,Animalia
+32,Sea loch anemone,Protanthea simplex,species,Animalia
+33,Fireworks anemone,Pachycerianthus multiplicatus,species,Animalia
+34,Wild star sea pen,Kophobelemnon stelliferum,species,Animalia
+35,Devonshire cup coral,Caryophyllia smithii,species,Animalia
+36,Cnidarian (any species),Cnidaria,phylum,Animalia
+37,Edible crab,Cancer pagurus,species,Animalia
+38,Harbour Swimming crab,Liocarcinus depurator,species,Animalia
+39,Angular crab,Goneplax rhomboides,species,Animalia
+40,European lobster,Homarus gammarus,species,Animalia
+41,Spiny squat lobster,Galathea strigosa,species,Animalia
+42,Rugose squat lobster,Munida rugosa,species,Animalia
+43,Deep sea squat lobster,Munidopsis serricornis,species,Animalia
+44,Common sun star,Crossaster papposus,species,Animalia
+45,Purple sun star,Solaster endeca,species,Animalia
+46,Red cushion star,Porania pulvillus,species,Animalia
+47,White sea urchin,Gracilechinus acutus,species,Animalia
+48,Spiny starfish,Marthasterias glacialis,species,Animalia
+49,Sand starfish,Astropecten irregularis,species,Animalia
+50,Henricia starfish,Henricia,genus,Animalia
+51,Norwegian red sea cucumber,Parastichopus tremulus,species,Animalia
+52,European oyster,Ostrea edulis,species,Animalia
+53,Blue mussel,Mytilus edulis,species,Animalia
+54,Black clam,Arctica islandica,species,Animalia
+55,Great scallop,Pecten maximus,species,Animalia
+56,Common whelk,Buccinum undatum,species,Animalia
+57,Pelican's foot,Aporrhais pespelecani,species,Animalia
+58,Dogwhelk,Nucella lapillus,species,Animalia
+59,European turret snail,Turritellinella tricarinata,species,Animalia
+60,Sea mouse,Aphrodita aculeata,species,Animalia
+61,Peacock feather-duster worm,Sabella pavonina,species,Animalia
+62,Keel worm,Spirobranchus triqueter,species,Animalia
+63,Lacy tubeworm,Filograna implexa,species,Animalia
+64,Polychaetes (Any species),Polychaeta,class,Animalia
+65,Green spoon worm,Bonellia viridis,species,Animalia
+66,Ascidians (any species),Ascidiacea,class,Animalia
