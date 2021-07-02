@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import json, io
 from ast import literal_eval
-from utils.zooniverse_utils import auth_session, get_export_pd
+from utils.zooniverse_utils import auth_session
 #from db_setup.process_frames import filter_bboxes
 from utils import db_utils
 from collections import OrderedDict
@@ -17,44 +17,50 @@ def get_workflows(zoo_user, zoo_pass):
     w_export = project.get_export("workflows", generate=False)
 
     # Save the response as pandas data frame
-    export_pd = pandas.read_csv(
+    w_export_pd = pandas.read_csv(
         io.StringIO(w_export.content.decode("utf-8")),
     )
     
     # TODO display the workflow ids and versions
     w = widgets.Dropdown(
-        options = export_pd.workflow_id.unique().tolist(),
-        value = export_pd.display_name.unique().tolist()[0],
+        options = w_export_pd.workflow_id.unique().tolist(),
+        value = w_export_pd.display_name.unique().tolist()[0],
         description = 'Workflow id:',
         disabled = False,
     )
     
-def get_classifications(project):
+def get_classifications(workflow_id: int, workflow_version: float, subj_type, user, passw):
+
+    # Connect to the Zooniverse project
+    project = auth_session(user, passw)
 
     # Get the classifications from the project
-    c_export = get_export_pd(project, "classifications")
-    s_export = get_export_pd(project, "subjects")
+    c_export = project.get_export("classifications")
+    s_export = project.get_export("subjects")
 
     # Save the response as pandas data frame
     class_df = pd.read_csv(
         io.StringIO(c_export.content.decode("utf-8")),
-        usecols=[
-            "user_name",
-            "subject_ids",
-            "subject_data",
-            "classification_id",
-            "workflow_id",
-            "workflow_version",
-            "created_at",
-            "annotations",
-        ],
     )
-                
-
+    
     subjects_df = pd.read_csv(
         io.StringIO(s_export.content.decode("utf-8")),
     )
-                
+    
+    # Filter classifications of interest
+    class_df = class_df[
+        (class_df.workflow_id == workflow_id)
+        & (class_df.workflow_version >= workflow_version)
+    ].reset_index(drop=True)
+    
+    
+    # Add information about the subject type
+    class_df['subject_type'] = class_df["subject_data"].apply(lambda x: [v["subject_type"] for k,v in json.loads(x).items()][0])
+    
+    # Ensure only classifications of one type of subject get analysed (frame or video)
+    class_df = class_df[class_df.subject_type == subj_type]
+    
+    # Add information on the location of the subject
     total_df = pd.merge(class_df, subjects_df[["subject_id", "workflow_id", "locations"]], 
                left_on=['subject_ids', "workflow_id"], right_on=["subject_id", "workflow_id"])
                 
@@ -62,9 +68,53 @@ def get_classifications(project):
     
     return total_df, class_df
 
+def set_aggregation_parameters(df):
+    # TODO display the workflow ids and versions
+    print(df)
 
-def process_clips(df: pd.DataFrame, class_df: pd.DataFrame, workflow_id: int, workflow_version: float):
-    df = df[(df.workflow_id == workflow_id) & (df.workflow_version >= workflow_version)].reset_index()
+
+def aggregrate_classifications(df, subj_type, agg_users, min_users):
+    
+    # Process the classifications of clips or frames
+    if subj_type=="clip":
+        agg_class_df = process_clips(df)
+    
+    if subj_type=="frame":
+        agg_class_df = process_frames(df)
+   
+    
+    # Calculate the number of users that classified each subject
+    agg_class_df["n_users"] = agg_class_df.groupby("subject_ids")[
+        "classification_id"
+    ].transform("nunique")
+
+    # Select frames with at least n different user classifications
+    agg_class_df = agg_class_df[agg_class_df.n_users >= n_users]
+    
+    # Calculate the proportion of users that agreed on their annotations
+    agg_class_df["class_n"] = agg_class_df.groupby(["subject_ids", "label"])[
+        "classification_id"
+    ].transform("count")
+    agg_class_df["class_prop"] = agg_class_df.class_n / agg_class_df.n_users
+
+    # Select annotations based on agreement threshold
+    agg_class_df = agg_class_df[agg_class_df.class_prop >= agg_users]
+
+    # Aggregate information unique to clips and frames
+    if subj_type=="clip":
+        # Extract the median of the second where the animal/object is and number of animals
+        agg_class_df = agg_class_df.groupby(["subject_ids", "label"], as_index=False)
+        agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
+    
+    if subj_type=="frame":
+        # TODO
+        print("WIP")
+        
+    return agg_class_df
+
+
+def process_clips(df: pd.DataFrame):
+    
     # Create an empty list
     rows_list = []
 
@@ -123,119 +173,20 @@ def process_clips(df: pd.DataFrame, class_df: pd.DataFrame, workflow_id: int, wo
         how="left",
         on="classification_id",
     )
-
-    # Clear duplicated subjects
-    #if args.duplicates_file_id:
-    #    annot_df = db_utils.combine_duplicates(annot_df, args.duplicates_file_id)
-
-    # Calculate the number of users that classified each subject
-    annot_df["n_users"] = annot_df.groupby("subject_ids")[
-        "classification_id"
-    ].transform("nunique")
     
     annot_df['retired'] = annot_df["subject_data"].apply(lambda x: [v["retired"] for k,v in json.loads(x).items()][0])
     
     return annot_df
 
 
-def process_frames(db_path: str, df: pd.DataFrame, workflow_id: int, workflow_version: float, duplicates_file_id: str,
-                   n_users: int = 5,
-                   object_thresh: float = 0.8, iou_epsilon: float = 0.5, inter_user_agreement: float = 0.5):
+def process_frames(df: pd.DataFrame):
     
-    # Filter w2 classifications
-    w2_data = df[
-        (df.workflow_id == workflow_id)
-        & (df.workflow_version >= workflow_version)
-    ].reset_index()
-
-    # Clear duplicated subjects
-    if duplicates_file_id:
-        w2_data = db_utils.combine_duplicates(w2_data, duplicates_file_id)
-
-    #Drop NaN columns
-    w2_data = w2_data.drop(['dupl_subject_id', 'single_subject_id'], 1)
-
-    ## Check if subjects have been uploaded
-    # Get species id for each species
-    conn = db_utils.create_connection(db_path)
-    
-    # Calculate the number of users that classified each subject
-    w2_data["n_users"] = w2_data.groupby("subject_ids")["classification_id"].transform(
-        "nunique"
-    )
-
-    # Select frames with at least n different user classifications
-    w2_data = w2_data[w2_data.n_users >= n_users]
-
-    # Drop workflow and n_users columns
-    w2_data = w2_data.drop(
-        columns=[
-            "workflow_id",
-            "workflow_version",
-            "n_users",
-            "created_at",
-            "subject_id",
-            "locations",
-        ]
-    )
-    
-    # Extract the video filename and annotation details
-    subject_data_df = pd.DataFrame(
-        w2_data["subject_data"]
-        .apply(
-            lambda x: [
-                {
-                    "movie_id": v["movie_id"],
-                    "frame_number": v["frame_number"],
-                    "label": v["label"],
-                }
-                for k, v in json.loads(x).items()  # if v['retired']
-            ][0],
-            1,
-        )
-        .tolist()
-    )
-
-    w2_data = pd.concat(
-        [w2_data.reset_index().drop("index", 1), subject_data_df],
-        axis=1,
-        ignore_index=True,
-    )
-    
-    w2_data = w2_data[w2_data.columns[1:]]
-
-    w2_data.columns = [
-        "classification_id",
-        "user_name",
-        "annotations",
-        "subject_data",
-        "subject_ids",
-        "movie_id",
-        "frame_number",
-        "label",
-    ]
-
-    movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
-    movies_df = movies_df.rename(columns={"id": "movie_id"})
-    
-    w2_data = pd.merge(w2_data, movies_df, how="left", on="movie_id")
-
-    # Convert to dictionary entries
-    w2_data["movie_id"] = w2_data["movie_id"].apply(lambda x: {"movie_id": x})
-    w2_data["frame_number"] = w2_data["frame_number"].apply(
-        lambda x: {"frame_number": x}
-    )
-    w2_data["label"] = w2_data["label"].apply(lambda x: {"label": x})
-    w2_data["user_name"] = w2_data["user_name"].apply(lambda x: {"user_name": x})
-    w2_data["subject_id"] = w2_data["subject_ids"].apply(lambda x: {"subject_id": x})
-    
-    
-    w2_data["annotation"] = w2_data["annotations"].apply(
+    df["annotation"] = df["annotations"].apply(
         lambda x: literal_eval(x)[0]["value"], 1
     )
 
     # Extract annotation metadata
-    w2_data["annotation"] = w2_data[
+    df["annotation"] = df[
         ["movie_id", "frame_number", "label", "annotation", "user_name", "subject_id"]
     ].apply(
         lambda x: [
@@ -277,69 +228,11 @@ def process_frames(db_path: str, df: pd.DataFrame, workflow_id: int, workflow_ve
                 "subject_id": int(i["subject_id"]) if "subject_id" in i else None,
             }
         )
-        for i in w2_data.annotation.explode()
+        for i in df.annotation.explode()
         if i is not None and i is not np.nan
     ]
 
-    # Get prepared annotations
-    w2_full = pd.DataFrame(ds)
-    w2_annotations = w2_full[w2_full["x"].notnull()]
-
-    new_rows = []
-    final_indices = []
-    for name, group in w2_annotations.groupby(["movie_id", "label", "start_frame"]):
-        movie_id, label, start_frame = name
-
-        total_users = w2_full[
-            (w2_full.movie_id == movie_id)
-            & (w2_full.label == label)
-            & (w2_full.start_frame == start_frame)
-        ]["user"].nunique()
-
-        # Filter bboxes using IOU metric (essentially a consensus metric)
-        # Keep only bboxes where mean overlap exceeds this threshold
-        indices, new_group = filter_bboxes(
-            total_users=total_users,
-            users=[i[0] for i in group.values],
-            bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
-            obj=object_thresh,
-            eps=iou_epsilon,
-            iua=inter_user_agreement,
-        )
-
-        subject_ids = [i[8] for i in group.values[indices]]
-
-        for ix, box in zip(subject_ids, new_group):
-            new_rows.append(
-                (
-                    movie_id,
-                    label,
-                    start_frame,
-                    ix,
-                )
-                + tuple(box)
-            )
-
-    w2_annotations = pd.DataFrame(
-        new_rows,
-        columns=[
-            "movie_id",
-            "label",
-            "start_frame",
-            "subject_ids",
-            "x",
-            "y",
-            "w",
-            "h",
-        ],
-    )
-
-    # Filter out invalid movies
-    w2_annotations = w2_annotations[w2_annotations["movie_id"].notnull()][
-        ["label", "x", "y", "w", "h", "subject_ids"]
-    ]
-
-    return w2_annotations
+    return df
 
 def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
     try:
