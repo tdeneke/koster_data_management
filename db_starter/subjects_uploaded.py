@@ -200,6 +200,9 @@ def main():
         ],
     )
 
+    
+    #TODO option for dealing with Koster specific upload system (e.g if project=#9747 ...)
+    
     ### Update subjects automatically and manually uploaded separately ###
 
     # Specify the date when the metadata of subjects uploaded matches schema.py
@@ -211,6 +214,7 @@ def main():
     # Select automatically uploaded subjects
     auto_subjects_df = auto_subjects(subjects_df, auto_date = auto_date)
 
+    #################Koster specific########
     # Select manually uploaded subjects
     manual_subjects_df = manual_subjects(subjects_df, manual_date = manual_date, auto_date = auto_date)
 
@@ -219,10 +223,13 @@ def main():
     
     # Combine all uploaded subjects
     subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
-
+    
     # Clear duplicated subjects if any
     if args.duplicates_csv:
         subjects = clean_duplicates(subjects, args.duplicates_csv)
+        
+        
+    ################End of koster specific###############
     
     ### Update subjects table ###
     

@@ -19,8 +19,11 @@ def get_length(video_file):
 
 def add_sites(sites_csv, db_path):
 
+    # TODO check if sites_csv exists otherwise download sites from Google Drive
+    
     # Load the csv with sites information
     sites_df = pd.read_csv(sites_csv)
+    
     
     # Select relevant fields
     sites_df = sites_df[
@@ -37,6 +40,8 @@ def add_sites(sites_csv, db_path):
     
 def add_movies(movies_csv, movies_path, db_path):
 
+    # TODO check if movies_csv exists otherwise download sites from Google Drive
+    
     # Load the csv with movies information
     movies_df = pd.read_csv(movies_csv)
 
@@ -67,7 +72,7 @@ def add_movies(movies_csv, movies_path, db_path):
                 # Calculate the fps and length of the original movies
                 movies_df[["fps", "duration"]] = pd.DataFrame(missing_fps_movies["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
             
-                # TODO update the movies.csv file with the new fps and duration information
+                # TODO update the local movies.csv file with the new fps and duration information and upload to Google Drive csv safe copy
                 
                 print(
                     f" The fps and duration of {len(missing_fps_movies)} movies have been succesfully added"
@@ -76,7 +81,7 @@ def add_movies(movies_csv, movies_path, db_path):
                 
     
     
-    # Ensure date is ISO 8601:2004(E) compatible
+    # Ensure date is ISO 8601:2004(E) compatible with Darwin Data standards
     #try:
     #    date.fromisoformat(movies_df['eventDate'])
     #except ValueError:
@@ -85,6 +90,7 @@ def add_movies(movies_csv, movies_path, db_path):
     # Connect to koster database
     conn = db_utils.create_connection(db_path)
     
+    # TODO add roadblock to check all movies have site references
     # Reference movies with their respective sites
     sites_df = pd.read_sql_query("SELECT id, siteName FROM sites", conn)
     sites_df = sites_df.rename(columns={"id": "Site_id"})
@@ -107,6 +113,8 @@ def add_movies(movies_csv, movies_path, db_path):
 
 def add_species(species_csv, db_path):
 
+    # TODO check if species_csv exists otherwise download sites from Google Drive
+    
     # Load the csv with species information
     species_df = pd.read_csv(species_csv)
     
@@ -161,6 +169,8 @@ def main():
     )
 
     args = parser.parse_args()
+    
+    #TODO add Google Drive template and provide option for koster csv
     
     add_sites(args.sites_csv, args.db_path)
     add_movies(args.movies_csv, args.movies_path, args.db_path)
