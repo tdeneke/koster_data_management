@@ -2,11 +2,12 @@
 Koster Seafloor Observatory - Data management
 ==================
 
-The Koster Seafloor Observatory is an open-source, citizen science and machine learning approach to analyse subsea movies. Find out more about it at https://www.zooniverse.org/projects/victorav/the-koster-seafloor-observatory
+The Koster Seafloor Observatory is an open-source, citizen science and machine learning approach to analyse subsea movies.
 
 .. image:: https://panoptes-uploads.zooniverse.org/project_attached_image/e1ee7635-8a04-4055-9397-3743608476a0.png
     :alt: "(Overview of the three main modules and the components of the Koster Seafloor Observatory.")
     
+You can find out more about the project at https://www.zooniverse.org/projects/victorav/the-koster-seafloor-observatory
 
 Overview
 ------------
