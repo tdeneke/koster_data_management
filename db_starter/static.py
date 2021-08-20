@@ -127,55 +127,15 @@ def add_species(species_csv, db_path):
     db_utils.add_to_table(
         db_path, "species", [tuple(i) for i in species_df.values], 5
     )
-
-
-def main():
-    "Handles argument parsing and launches the correct function."
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--sites_csv",
-        "-sit",
-        help="Filepath of the csv file with info about the sites",
-        type=str,
-        default=r"../db_starter/db_csv_info/sites_koster.csv",
-    )
-    parser.add_argument(
-        "--movies_csv",
-        "-mov",
-        help="Filepath of the csv file with info about the movies",
-        type=str,
-        default=r"../db_starter/db_csv_info/movies_koster.csv",
-    )
-    parser.add_argument(
-        "--species_csv",
-        "-sp",
-        help="Filepath of the csv file with info about the species",
-        type=str,
-        default=r"../db_starter/db_csv_info/species_koster.csv",
-    )
-    parser.add_argument(
-        "-mp",
-        "--movies_path",
-        type=str,
-        help="Absolute path to the movie files",
-        default=r"/uploads",
-    )
-    parser.add_argument(
-        "-db",
-        "--db_path",
-        type=str,
-        help="the absolute path to the database file",
-        default=r"koster_lab.db",
-    )
-
-    args = parser.parse_args()
     
+
+def static_setup(sites_csv: str = r"../db_starter/db_csv_info/sites_koster.csv",
+                 movies_csv: str = r"../db_starter/db_csv_info/movies_koster.csv",
+                 species_csv: str = r"../db_starter/db_csv_info/species_koster.csv",
+                 movies_path: str = r"/uploads",
+                 db_path: str = r"koster_lab.db"):
     #TODO add Google Drive template and provide option for koster csv
     
-    add_sites(args.sites_csv, args.db_path)
-    add_movies(args.movies_csv, args.movies_path, args.db_path)
-    add_species(args.species_csv, args.db_path)
-
-
-if __name__ == "__main__":
-    main()
+    add_sites(sites_csv, db_path)
+    add_movies(movies_csv, movies_path, db_path)
+    add_species(species_csv, db_path)

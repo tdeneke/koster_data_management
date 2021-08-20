@@ -9,8 +9,12 @@
 # Database initial files
 *.csv
 
+# Pyc files
+*.pyc
+
 # System extensions
 .DS_Store
+.ipynb_checkpoints
 
 # Folder containing video clips
 zooniverse_scripts/clips/

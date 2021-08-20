@@ -151,36 +151,12 @@ def clean_duplicates(subjects, duplicates_csv):
     subjects = subjects.drop_duplicates(subset='subject_id', keep='first')
     
     return subjects
-    
-def main():
 
-    "Handles argument parsing and launches the correct function."
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--user", "-u", help="Zooniverse username", type=str, required=True
-    )
-    parser.add_argument(
-        "--passw", "-p", help="Zooniverse password", type=str, required=True
-    )
-    parser.add_argument(
-        "-db",
-        "--db_path",
-        type=str,
-        help="the absolute path to the database file",
-        default=r"koster_lab.db",
-    )
-    parser.add_argument(
-        "-du",
-        "--duplicates_csv",
-        help="Filepath of the csv file with info of duplicated subjects",
-        type=str,
-        default=r"../db_starter/db_csv_info/duplicated_subjects.csv",
-    )
-
-    args = parser.parse_args()
+def remove_duplicates(user: str, password: str, db_path: str = r"koster_lab.db", 
+                      duplicates_csv: str = r"../db_starter/db_csv_info/duplicated_subjects.csv"):
     
     # Connect to the Zooniverse project
-    project = auth_session(args.user, args.passw)
+    project = auth_session(user, password)
 
     # Get info of subjects uploaded to the project
     export = project.get_export("subjects")
@@ -219,14 +195,14 @@ def main():
     manual_subjects_df = manual_subjects(subjects_df, manual_date = manual_date, auto_date = auto_date)
 
     # Include movie_ids to the metadata
-    manual_subjects_df = get_movies_id(manual_subjects_df, args.db_path)
+    manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
     
     # Combine all uploaded subjects
     subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
     
     # Clear duplicated subjects if any
     if args.duplicates_csv:
-        subjects = clean_duplicates(subjects, args.duplicates_csv)
+        subjects = clean_duplicates(subjects, duplicates_csv)
         
         
     ################End of koster specific###############
@@ -264,10 +240,5 @@ def main():
 
     # Add values to subjects
     db_utils.add_to_table(
-        args.db_path, "subjects", [tuple(i) for i in subjects.values], 14
+        db_path, "subjects", [tuple(i) for i in subjects.values], 14
     )
-
-    
-
-if __name__ == "__main__":
-    main()
