@@ -46,7 +46,7 @@ Follow the `instructions to clone a Github repo
 Create the inital information for the database 
 ~~~~
 
-You will need to create a directory in the db_starter with information about the movies, sites and species of interest. You can `download a template of the csv files <https://drive.google.com/drive/folders/1_3ooMI1wgGnsv7dby8V1OIR9UWekcGJV?usp=sharing/>`_.
+You will need to create a directory in the db_starter with information about the movies, sites and species of interest. You can `download a template of the csv files <https://drive.google.com/file/d/1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn/view?usp=sharing/>`_ or specify the Google Drive ID of a zipped folder containing these files (e.g. 1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn).
 
 
 Link your movies to the database 
