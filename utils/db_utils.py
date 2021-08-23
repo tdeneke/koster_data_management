@@ -1,8 +1,12 @@
+import os
 import sqlite3
 import requests
 import pandas as pd
 import numpy as np
 import io
+import gdown
+import zipfile
+
 
 # Utility functions for common database operations
 
@@ -188,3 +192,20 @@ def combine_duplicates(annot_df, duplicates_file_id):
     )
 
     return annot_df
+
+def download_init_csv(gdrive_id, db_csv_info):
+    
+    # Specify the url of the file to download
+    url_input = "https://drive.google.com/uc?id=" + str(gdrive_id)
+    
+    print("retrieveing the file from ", url_input)
+    
+    # Specify the output of the file
+    zip_file = 'db_csv_info.zip'
+    
+    # Download the zip file
+    gdown.download(url_input, zip_file, quiet=False)
+    
+    # Unzip the folder with the csv files
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        zip_ref.extractall(os.path.dirname(db_csv_info))
