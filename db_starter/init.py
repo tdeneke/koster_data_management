@@ -6,6 +6,11 @@ from utils import db_utils
 
 # Initiate the database
 def init_db(db_path: str = r"koster_lab.db"):
+    
+    # Delete previous database versions if exists
+    if os.path.exists(args.db_path):
+      os.remove(args.db_path)
+    
     # Get sql command for db setup
     sql_setup = schema.sql
     # create a database connection
