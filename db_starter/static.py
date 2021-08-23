@@ -19,8 +19,6 @@ def get_length(video_file):
 
 def add_sites(sites_csv, db_path):
 
-    # TODO check if sites_csv exists otherwise download sites from Google Drive
-    
     # Load the csv with sites information
     sites_df = pd.read_csv(sites_csv)
     
@@ -40,8 +38,6 @@ def add_sites(sites_csv, db_path):
     
 def add_movies(movies_csv, movies_path, db_path):
 
-    # TODO check if movies_csv exists otherwise download sites from Google Drive
-    
     # Load the csv with movies information
     movies_df = pd.read_csv(movies_csv)
 
@@ -113,8 +109,6 @@ def add_movies(movies_csv, movies_path, db_path):
 
 def add_species(species_csv, db_path):
 
-    # TODO check if species_csv exists otherwise download sites from Google Drive
-    
     # Load the csv with species information
     species_df = pd.read_csv(species_csv)
     
@@ -129,12 +123,11 @@ def add_species(species_csv, db_path):
     )
     
 
-def static_setup(sites_csv: str = r"../db_starter/db_csv_info/sites_koster.csv",
-                 movies_csv: str = r"../db_starter/db_csv_info/movies_koster.csv",
-                 species_csv: str = r"../db_starter/db_csv_info/species_koster.csv",
+def static_setup(sites_csv,
+                 movies_csv,
+                 species_csv,
                  movies_path: str = r"/uploads",
-                 db_path: str = r"koster_lab.db"):
-    #TODO add Google Drive template and provide option for koster csv
+                 db_path: str = r"koster_lab.db"):   
     
     add_sites(sites_csv, db_path)
     add_movies(movies_csv, movies_path, db_path)

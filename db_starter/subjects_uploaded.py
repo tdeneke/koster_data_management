@@ -152,7 +152,7 @@ def clean_duplicates(subjects, duplicates_csv):
     
     return subjects
 
-def remove_duplicates(user: str, password: str, db_path: str = r"koster_lab.db", 
+def retrieve_zooniverse_subjects(user: str, password: str, db_path: str = r"koster_lab.db", 
                       duplicates_csv: str = r"../db_starter/db_csv_info/duplicated_subjects.csv"):
     
     # Connect to the Zooniverse project
