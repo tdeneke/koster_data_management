@@ -198,7 +198,7 @@ def download_init_csv(gdrive_id, db_csv_info):
     # Specify the url of the file to download
     url_input = "https://drive.google.com/uc?id=" + str(gdrive_id)
     
-    print("retrieveing the file from ", url_input)
+    print("Retrieving the file from ", url_input)
     
     # Specify the output of the file
     zip_file = 'db_csv_info.zip'
