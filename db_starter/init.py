@@ -1,21 +1,20 @@
 import os
-import argparse
 import schema
 import sqlite3
 import sys
 from utils import db_utils
 
 # Initiate the database
-def init_db(db_path: str = r"koster_lab.db"):
+def init_db(db_path: str):
     
     # Delete previous database versions if exists
-    if os.path.exists(args.db_path):
-        os.remove(args.db_path)
+    if os.path.exists(db_path):
+        os.remove(db_path)
     
     # Get sql command for db setup
     sql_setup = schema.sql
     # create a database connection
-    conn = db_utils.create_connection(r"{:s}".format(args.db_path))
+    conn = db_utils.create_connection(r"{:s}".format(db_path))
 
     # create tables
     if conn is not None:

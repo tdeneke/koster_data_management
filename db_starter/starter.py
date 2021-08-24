@@ -1,5 +1,6 @@
 import io, os
 import getpass
+import argparse
 
 from pathlib import Path
 from utils.db_utils import download_init_csv
@@ -8,15 +9,48 @@ from static import static_setup
 from subjects_uploaded import retrieve_zooniverse_subjects
 
 def main():
+    
+    "Handles argument parsing and launches the correct function."
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--user", "-u", help="Zooniverse username", type=str, required=True
+    )
+    parser.add_argument(
+        "--password", "-p", help="Zooniverse password", type=str, required=True
+    )
+    parser.add_argument(
+        "--project_n", "-pn", help="Zooniverse project number", type=str, required=True
+    )
+    parser.add_argument(
+        "-mp",
+        "--movies_path",
+        type=str,
+        help="the absolute path to the movie files",
+        default=r"/uploads",
+        required=False,
+    )
+    parser.add_argument(
+        "-db",
+        "--db_path",
+        type=str,
+        help="the absolute path to the database file",
+        default=r"koster_lab.db",
+        required=False,
+    )
 
-    # Define the path to the csv files with inital info to build the db
+    args = parser.parse_args()
+    
+    
+    # Define the path to the csv files with initial info to build the db
     db_csv_info = "../db_starter/db_csv_info/" 
     
     # Check if  the directory db_csv_info exists
     if not os.path.exists(db_csv_info):
         
+        print("There is no folder with initial information about the sites, movies and species.\n Please enter the ID of a Google Drive zipped folder with the inital database information. \n For example, the ID of the template information is: 1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn")
+        
         # Provide ID of the GDrive zipped folder with the init. database information
-        gdrive_id = getpass.getpass('Enter the ID of the Google Drive zipped folder with the database information. \n The ID of the template information is: 1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn')
+        gdrive_id = getpass.getpass('ID of Google Drive zipped folder')
         
         # Download the csv files
         download_init_csv(gdrive_id, db_csv_info)
@@ -33,21 +67,17 @@ def main():
         if 'duplicat' in file.name:
             duplicated_csv = file
 
-    # Your user name and password for Zooniverse. 
-    zoo_user = getpass.getpass('Enter your Zooniverse user')
-    zoo_pass = getpass.getpass('Enter your Zooniverse password')
-    
     # Initiate the sql db
-    init_db()
+    init_db(args.db_path)
     
     # Populate the db with initial info from csv files
-    static_setup(sites_csv,movies_csv,species_csv)
+    static_setup(sites_csv, movies_csv, species_csv, args.movies_path, args.db_path)
     
     # Populate the db with subject info and deal with duplicates if any
     if duplicated_csv:
-        retrieve_zooniverse_subjects(zoo_user, zoo_pass, duplicated_csv)
+        retrieve_zooniverse_subjects(args.user, args.password, args.project_n, duplicated_csv, args.db_path)
     else:
-        retrieve_zooniverse_subjects(zoo_user, zoo_pass)
+        retrieve_zooniverse_subjects(args.user, args.password, args.project_n, args.db_path)
     
 if __name__ == "__main__":
     main()

@@ -209,3 +209,7 @@ def download_init_csv(gdrive_id, db_csv_info):
     # Unzip the folder with the csv files
     with zipfile.ZipFile(zip_file, 'r') as zip_ref:
         zip_ref.extractall(os.path.dirname(db_csv_info))
+        
+        
+    # Remove the zipped file
+    os.remove(zip_file)

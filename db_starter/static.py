@@ -123,11 +123,11 @@ def add_species(species_csv, db_path):
     )
     
 
-def static_setup(sites_csv,
-                 movies_csv,
-                 species_csv,
-                 movies_path: str = r"/uploads",
-                 db_path: str = r"koster_lab.db"):   
+def static_setup(sites_csv: str,
+                 movies_csv: str,
+                 species_csv: str,
+                 movies_path: str,
+                 db_path: str):   
     
     add_sites(sites_csv, db_path)
     add_movies(movies_csv, movies_path, db_path)

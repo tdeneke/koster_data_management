@@ -1,6 +1,6 @@
 import io, os, json, csv
 import sqlite3
-import requests, argparse
+import requests
 import pandas as pd
 import numpy as np
 
@@ -108,7 +108,7 @@ def get_movies_id(df, db_path):
 def process_manual_clips(meta_df):
 
     # Select the filename of the clips and remove extension type
-    clip_filenames = meta_df["filename"].str.replace(".mp4", "")
+    clip_filenames = meta_df["filename"].str.replace(".mp4", "", regex=True)
 
     # Get the starting time of clips in relation to the original movie
     # split the filename and select the last section
@@ -152,17 +152,22 @@ def clean_duplicates(subjects, duplicates_csv):
     
     return subjects
 
-def retrieve_zooniverse_subjects(user: str, password: str, db_path: str = r"koster_lab.db", 
-                      duplicates_csv: str = r"../db_starter/db_csv_info/duplicated_subjects.csv"):
+def retrieve_zooniverse_subjects(user: str, 
+                                 password: str, 
+                                 project_n: str,
+                                 duplicates_csv: str,
+                                 db_path: str):
+    
+    print("Retrieving information from subjects uploaded to Zooniverse")
     
     # Connect to the Zooniverse project
-    project = auth_session(user, password)
-
+    project = auth_session(user, password, project_n)
+    
     # Get info of subjects uploaded to the project
     export = project.get_export("subjects")
 
     # Save the subjects info as pandas data frame
-    subjects_df = pd.read_csv(
+    subjects = pd.read_csv(
         io.StringIO(export.content.decode("utf-8")),
         usecols=[
             "subject_id",
@@ -177,36 +182,46 @@ def retrieve_zooniverse_subjects(user: str, password: str, db_path: str = r"kost
     )
 
     
-    #TODO option for dealing with Koster specific upload system (e.g if project=#9747 ...)
-    
-    ### Update subjects automatically and manually uploaded separately ###
+    #Check if the Zooniverse project is the KSO
+    if project_n=="9747":
+        #################Start of Koster specific###########
+        
+        ## Set the date when the metadata of subjects uploaded matches/doesn't match schema.py requirements
 
-    # Specify the date when the metadata of subjects uploaded matches schema.py
-    auto_date = "2020-05-29 00:00:00 UTC"
-    
-    # Specify the starting date when clips were manually uploaded
-    manual_date = "2019-11-17 00:00:00 UTC"
-    
-    # Select automatically uploaded subjects
-    auto_subjects_df = auto_subjects(subjects_df, auto_date = auto_date)
+        # Specify the date when the metadata of subjects uploaded matches schema.py
+        auto_date = "2020-05-29 00:00:00 UTC"
 
-    #################Koster specific########
-    # Select manually uploaded subjects
-    manual_subjects_df = manual_subjects(subjects_df, manual_date = manual_date, auto_date = auto_date)
+        # Specify the starting date when clips were manually uploaded
+        manual_date = "2019-11-17 00:00:00 UTC"
 
-    # Include movie_ids to the metadata
-    manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
-    
-    # Combine all uploaded subjects
-    subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
-    
-    # Clear duplicated subjects if any
-    if args.duplicates_csv:
+        ## Update subjects automatically uploaded 
+        
+        # Select automatically uploaded subjects
+        auto_subjects_df = auto_subjects(subjects, auto_date = auto_date)
+
+        ## Update subjects manually uploaded
+        # Select manually uploaded subjects
+        manual_subjects_df = manual_subjects(subjects, manual_date = manual_date, auto_date = auto_date)
+
+        # Include movie_ids to the metadata
+        manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
+
+        ## Combine and clean KSO subjects
+        # Combine all uploaded subjects
+        subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
+
+        # Clear duplicated subjects if any
         subjects = clean_duplicates(subjects, duplicates_csv)
         
-        
-    ################End of koster specific###############
+        ################End of koster specific###############
     
+    else:
+        # Extract metadata from uploaded subjects
+        subjects_df, subjects_meta = extract_metadata(subjects)
+
+        # Combine metadata info with the subjects df
+        subjects = pd.concat([subjects_df, subjects_meta], axis=1)
+        
     ### Update subjects table ###
     
     # Set subject_id information as id
