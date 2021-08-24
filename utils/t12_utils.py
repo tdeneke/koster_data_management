@@ -29,14 +29,18 @@ def get_workflows(zoo_user, zoo_pass):
         disabled = False,
     )
     
-def get_classifications(workflow_id: int, workflow_version: float, subj_type, user, passw):
+def get_classifications(workflow_id: int, workflow_version: float, subj_type, user, passw, project_n):
 
+    print("Retrieving classifications from Zooniverse")
+    
     # Connect to the Zooniverse project
-    project = auth_session(user, passw)
+    project = auth_session(user, passw, project_n)
 
     # Get the classifications from the project
     c_export = project.get_export("classifications")
+    print("Classifications retrieved from Zooniverse")
     s_export = project.get_export("subjects")
+    print("Subjects retrieved from Zooniverse")
 
     # Save the response as pandas data frame
     class_df = pd.read_csv(
@@ -66,6 +70,8 @@ def get_classifications(workflow_id: int, workflow_version: float, subj_type, us
                 
     total_df["locations"] = total_df["locations"].apply(lambda x: literal_eval(x)["0"])
     
+    print("Zooniverse classifications have been retrieved")
+    
     return total_df, class_df
 
 def set_aggregation_parameters(df):
@@ -75,6 +81,7 @@ def set_aggregation_parameters(df):
 
 def aggregrate_classifications(df, subj_type, agg_users, min_users):
     
+    print("Aggregrating the classifications")
     # Process the classifications of clips or frames
     if subj_type=="clip":
         agg_class_df = process_clips(df)
@@ -169,7 +176,7 @@ def process_clips(df: pd.DataFrame):
     # Add subject id to each annotation
     annot_df = pd.merge(
         annot_df,
-        class_df.drop(columns=["annotations"]),
+        df.drop(columns=["annotations"]),
         how="left",
         on="classification_id",
     )
