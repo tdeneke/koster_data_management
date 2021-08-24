@@ -43,6 +43,8 @@ Follow the `instructions to clone a Github repo
 <https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository-from-github/cloning-a-repository/>`_ 
 
 
+Download Anaconda
+
 Create the inital information for the database 
 ~~~~
 
