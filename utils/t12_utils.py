@@ -8,27 +8,97 @@ from utils import db_utils
 from collections import OrderedDict
 from IPython.display import HTML, display, update_display, clear_output
 import ipywidgets as widgets
+from ipywidgets import interact
+import asyncio
 
-def get_workflows(zoo_user, zoo_pass):
+def choose_agg_parameters():
+    agg_users = widgets.FloatSlider(
+        value=0.8,
+        min=0,
+        max=1.0,
+        step=0.1,
+        description='Aggregation threshold:',
+        disabled=False,
+        continuous_update=False,
+        orientation='horizontal',
+        readout=True,
+        readout_format='.1f',
+        display='flex',
+        flex_flow='column',
+        align_items='stretch',
+        style= {'description_width': 'initial'}
+    )
+    display(agg_users)
+    min_users = widgets.IntSlider(
+        value=3,
+        min=1,
+        max=50,
+        step=1,
+        description='Min numbers of users:',
+        disabled=False,
+        continuous_update=False,
+        orientation='horizontal',
+        readout=True,
+        readout_format='d',
+        display='flex',
+        flex_flow='column',
+        align_items='stretch',
+        style= {'description_width': 'initial'}
+    )
+    display(min_users)
+    return agg_users, min_users
+
+
+def choose_workflows(zoo_user, zoo_pass, project_n):
     
-    project = auth_session(zoo_user, zoo_pass)
+    project = auth_session(zoo_user, zoo_pass, project_n)
     
     # Get information of the workflows from Zooniverse
     w_export = project.get_export("workflows", generate=False)
 
     # Save the response as pandas data frame
-    w_export_pd = pandas.read_csv(
+    w_export_pd = pd.read_csv(
         io.StringIO(w_export.content.decode("utf-8")),
-    )
+    sep=',')
+    
+    layout = widgets.Layout(width='auto', height='40px') #set width and height
     
     # TODO display the workflow ids and versions
-    w = widgets.Dropdown(
+    w1 = widgets.Dropdown(
         options = w_export_pd.workflow_id.unique().tolist(),
-        value = w_export_pd.display_name.unique().tolist()[0],
+        value = w_export_pd.workflow_id.unique().tolist()[0],
         description = 'Workflow id:',
         disabled = False,
     )
     
+    w2 = widgets.Dropdown(
+        options = list(map(float, w_export_pd.version.unique().tolist())),
+        value = float(w_export_pd.version.unique().tolist()[0]),
+        description = 'Workflow version:',
+        disabled = False,
+        display='flex',
+        flex_flow='column',
+        align_items='stretch',
+        style= {'description_width': 'initial'}
+    )
+    
+    w3 = widgets.Dropdown(
+        options = ["frame", "clip"],
+        value = "clip",
+        description = 'Subject type:',
+        disabled = False,
+    )
+   
+    #w1.observe(on_change)
+    display(w1)
+    #w2.observe(on_change)
+    display(w2)
+    #w3.observe(on_change)
+    display(w3)
+    
+    return w1, w2, w3
+    
+          
 def get_classifications(workflow_id: int, workflow_version: float, subj_type, user, passw, project_n):
 
     print("Retrieving classifications from Zooniverse")
@@ -43,9 +113,12 @@ def get_classifications(workflow_id: int, workflow_version: float, subj_type, us
     print("Subjects retrieved from Zooniverse")
 
     # Save the response as pandas data frame
-    class_df = pd.read_csv(
+    try:
+        class_df = pd.read_csv(
         io.StringIO(c_export.content.decode("utf-8")),
     )
+    except:
+        raise ValueError("Request time out, please try again in 1 minute.")
     
     subjects_df = pd.read_csv(
         io.StringIO(s_export.content.decode("utf-8")),
@@ -59,10 +132,13 @@ def get_classifications(workflow_id: int, workflow_version: float, subj_type, us
     
     
     # Add information about the subject type
-    class_df['subject_type'] = class_df["subject_data"].apply(lambda x: [v["subject_type"] for k,v in json.loads(x).items()][0])
-    
-    # Ensure only classifications of one type of subject get analysed (frame or video)
-    class_df = class_df[class_df.subject_type == subj_type]
+    try:
+        class_df['subject_type'] = class_df["subject_data"].apply(lambda x: [v["subject_type"] for k,v in json.loads(x).items()][0])
+
+        # Ensure only classifications of one type of subject get analysed (frame or video)
+        class_df = class_df[class_df.subject_type == subj_type]
+    except:
+        pass
     
     # Add information on the location of the subject
     total_df = pd.merge(class_df, subjects_df[["subject_id", "workflow_id", "locations"]], 
@@ -96,7 +172,7 @@ def aggregrate_classifications(df, subj_type, agg_users, min_users):
     ].transform("nunique")
 
     # Select frames with at least n different user classifications
-    agg_class_df = agg_class_df[agg_class_df.n_users >= n_users]
+    agg_class_df = agg_class_df[agg_class_df.n_users >= min_users]
     
     # Calculate the proportion of users that agreed on their annotations
     agg_class_df["class_n"] = agg_class_df.groupby(["subject_ids", "label"])[
@@ -243,13 +319,14 @@ def process_frames(df: pd.DataFrame):
 
 def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
     try:
-        subject_location = df[df.subject_id == subject_id]["locations"].iloc[0]
+        
+        subject_location = df[df.subject_ids == subject_id]["locations"].iloc[0]
     except:
         raise Exception("The reference data does not contain media for this subject.")
     if len(annot_df[annot_df.subject_ids == subject_id]) == 0: 
         raise Exception("Subject not found in provided annotations")
        
-    
+    print(df[df.subject_ids == subject_id].columns)
     # Get the HTML code to show the selected subject
     if ".mp4" in subject_location:
         html_code =f"""
@@ -277,7 +354,7 @@ def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
     return HTML(html_code)
 
 
-def launch_viewer(total_df: pd.DataFrame, clips_df: pd.DataFrame, frames_df: pd.DataFrame):
+def launch_viewer(df: pd.DataFrame, total_df: pd.DataFrame):
     
     v = widgets.ToggleButtons(
         options=['Frames', 'Clips'],
@@ -286,17 +363,14 @@ def launch_viewer(total_df: pd.DataFrame, clips_df: pd.DataFrame, frames_df: pd.
         button_style='success',
     )
 
-    subject_df = clips_df
+    subject_df = df
 
     def on_tchange(change):
         global subject_df
         with main_out:
             if change['type'] == 'change' and change['name'] == 'value':
-                if change['new'] == "Frames":
-                    subject_df = frames_df
-                else:
-                    subject_df = clips_df
                 clear_output()
+                subject_df = df
                 w = widgets.Dropdown(
                     options=subject_df.subject_ids.unique().tolist(),
                     value=subject_df.subject_ids.unique().tolist()[0],
@@ -313,7 +387,7 @@ def launch_viewer(total_df: pd.DataFrame, clips_df: pd.DataFrame, frames_df: pd.
         global subject_df
         with out:
             if change['type'] == 'change' and change['name'] == 'value':
-                a = view_subject(change['new'], total_df, subject_df)
+                a = view_subject(change['new'], subject_df, total_df)
                 clear_output()
                 display(a)
 
