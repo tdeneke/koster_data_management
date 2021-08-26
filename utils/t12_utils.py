@@ -150,14 +150,28 @@ def get_classifications(workflow_id: int, workflow_version: float, subj_type, us
     
     return total_df, class_df
 
-def set_aggregation_parameters(df):
-    # TODO display the workflow ids and versions
-    print(df)
+def clips_summary(db_path):
+
+    conn = db_utils.create_connection(db_path)
+
+    clips = pd.read_sql_query(f"SELECT * FROM agg_annotations_clip", conn)
+
+    # Get id of species of interest
+    species_id = pd.read_sql_query(f"SELECT id, label FROM species", conn)
+
+    # Include a column with unique ids for duplicated subjects
+    clips = pd.merge(clips, species_id, how="left", left_on="species_id", right_on="id")
+
+    return clips.groupby("label").agg({"species_id": "count", "how_many": "sum"})
+
+def frammes_summary(db_path):
+    
 
 
 def aggregrate_classifications(df, subj_type, agg_users, min_users):
     
     print("Aggregrating the classifications")
+    
     # Process the classifications of clips or frames
     if subj_type=="clip":
         agg_class_df = process_clips(df)
@@ -192,7 +206,8 @@ def aggregrate_classifications(df, subj_type, agg_users, min_users):
     if subj_type=="frame":
         # TODO
         print("WIP")
-        
+
+    print("Classifications aggregated")
     return agg_class_df
 
 
