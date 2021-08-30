@@ -1,26 +1,15 @@
-import io, os
-import getpass
+import os
 import argparse
 
 from pathlib import Path
 from utils.db_utils import download_init_csv
 from init import init_db
 from static import static_setup
-from subjects_uploaded import retrieve_zooniverse_subjects
 
 def main():
     
     "Handles argument parsing and launches the correct function."
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--user", "-u", help="Zooniverse username", type=str, required=True
-    )
-    parser.add_argument(
-        "--password", "-p", help="Zooniverse password", type=str, required=True
-    )
-    parser.add_argument(
-        "--project_n", "-pn", help="Zooniverse project number", type=str, required=True
-    )
     parser.add_argument(
         "-mp",
         "--movies_path",
@@ -40,11 +29,10 @@ def main():
 
     args = parser.parse_args()
     
-    
     # Define the path to the csv files with initial info to build the db
     db_csv_info = "../db_starter/db_csv_info/" 
     
-    # Check if  the directory db_csv_info exists
+    # Check if the directory db_csv_info exists
     if not os.path.exists(db_csv_info):
         
         print("There is no folder with initial information about the sites, movies and species.\n Please enter the ID of a Google Drive zipped folder with the inital database information. \n For example, the ID of the template information is: 1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn")
@@ -64,8 +52,7 @@ def main():
             movies_csv = file
         if 'species' in file.name:
             species_csv = file
-        if 'duplicat' in file.name:
-            duplicated_csv = file
+        
 
     # Initiate the sql db
     init_db(args.db_path)
@@ -73,11 +60,6 @@ def main():
     # Populate the db with initial info from csv files
     static_setup(sites_csv, movies_csv, species_csv, args.movies_path, args.db_path)
     
-    # Populate the db with subject info and deal with duplicates if any
-    if duplicated_csv:
-        retrieve_zooniverse_subjects(args.user, args.password, args.project_n, duplicated_csv, args.db_path)
-    else:
-        retrieve_zooniverse_subjects(args.user, args.password, args.project_n, args.db_path)
     
 if __name__ == "__main__":
     main()

@@ -49,17 +49,7 @@ def choose_agg_parameters():
     return agg_users, min_users
 
 
-def choose_workflows(zoo_user, zoo_pass, project_n):
-    
-    project = auth_session(zoo_user, zoo_pass, project_n)
-    
-    # Get information of the workflows from Zooniverse
-    w_export = project.get_export("workflows", generate=False)
-
-    # Save the response as pandas data frame
-    w_export_pd = pd.read_csv(
-        io.StringIO(w_export.content.decode("utf-8")),
-    sep=',')
+def choose_workflows():
     
     layout = widgets.Layout(width='auto', height='40px') #set width and height
     
@@ -99,31 +89,8 @@ def choose_workflows(zoo_user, zoo_pass, project_n):
     return w1, w2, w3
     
           
-def get_classifications(workflow_id: int, workflow_version: float, subj_type, user, passw, project_n):
+def get_classifications(workflow_id: int, workflow_version: float, subj_type, class_df, subjects_df):
 
-    print("Retrieving classifications from Zooniverse")
-    
-    # Connect to the Zooniverse project
-    project = auth_session(user, passw, project_n)
-
-    # Get the classifications from the project
-    c_export = project.get_export("classifications")
-    print("Classifications retrieved from Zooniverse")
-    s_export = project.get_export("subjects")
-    print("Subjects retrieved from Zooniverse")
-
-    # Save the response as pandas data frame
-    try:
-        class_df = pd.read_csv(
-        io.StringIO(c_export.content.decode("utf-8")),
-    )
-    except:
-        raise ValueError("Request time out, please try again in 1 minute.")
-    
-    subjects_df = pd.read_csv(
-        io.StringIO(s_export.content.decode("utf-8")),
-    )
-    
     # Filter classifications of interest
     class_df = class_df[
         (class_df.workflow_id == workflow_id)
