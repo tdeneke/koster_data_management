@@ -1,15 +1,14 @@
 import io, os, json, csv
 import sqlite3
-import requests
-import pandas as pd
+import pandas as pdy
 import numpy as np
+from pathlib import Path
 
 from datetime import datetime
-from panoptes_client import Project, Panoptes
 import utils.db_utils as db_utils
-from utils.zooniverse_utils import auth_session
 
-# Function to extract the metadata from subjects
+
+# Function to extract metadata from subjects
 def extract_metadata(subj_df):
 
     # Reset index of df
@@ -22,7 +21,6 @@ def extract_metadata(subj_df):
     subj_df = subj_df.drop(columns=["metadata", "index",])
 
     return subj_df, meta_df
-
 
 # Function to process subjects uploaded automatically
 def auto_subjects(subjects_df, auto_date):
@@ -37,8 +35,7 @@ def auto_subjects(subjects_df, auto_date):
     auto_subjects_df = pd.concat([auto_subjects_df, auto_subjects_meta], axis=1)
     
     return auto_subjects_df
-    
-    
+
 # Function to process subjects uploaded manually
 def manual_subjects(subjects_df, manual_date, auto_date):
     
@@ -151,109 +148,41 @@ def clean_duplicates(subjects, duplicates_csv):
     subjects = subjects.drop_duplicates(subset='subject_id', keep='first')
     
     return subjects
-
-def retrieve_zooniverse_subjects(user: str, 
-                                 password: str, 
-                                 project_n: str,
-                                 duplicates_csv: str,
-                                 db_path: str):
     
-    print("Retrieving information from subjects uploaded to Zooniverse")
     
-    # Connect to the Zooniverse project
-    project = auth_session(user, password, project_n)
+def process_koster_subjects(subjects, db_path):
     
-    # Get info of subjects uploaded to the project
-    export = project.get_export("subjects")
+    ## Set the date when the metadata of subjects uploaded matches/doesn't match schema.py requirements
 
-    # Save the subjects info as pandas data frame
-    subjects = pd.read_csv(
-        io.StringIO(export.content.decode("utf-8")),
-        usecols=[
-            "subject_id",
-            "metadata",
-            "created_at",
-            "workflow_id",
-            "subject_set_id",
-            "classifications_count",
-            "retired_at",
-            "retirement_reason",
-        ],
-    )
+    # Specify the date when the metadata of subjects uploaded matches schema.py
+    auto_date = "2020-05-29 00:00:00 UTC"
 
-    
-    #Check if the Zooniverse project is the KSO
-    if project_n=="9747":
-        #################Start of Koster specific###########
-        
-        ## Set the date when the metadata of subjects uploaded matches/doesn't match schema.py requirements
+    # Specify the starting date when clips were manually uploaded
+    manual_date = "2019-11-17 00:00:00 UTC"
 
-        # Specify the date when the metadata of subjects uploaded matches schema.py
-        auto_date = "2020-05-29 00:00:00 UTC"
+    ## Update subjects automatically uploaded 
 
-        # Specify the starting date when clips were manually uploaded
-        manual_date = "2019-11-17 00:00:00 UTC"
+    # Select automatically uploaded subjects
+    auto_subjects_df = auto_subjects(subjects, auto_date = auto_date)
 
-        ## Update subjects automatically uploaded 
-        
-        # Select automatically uploaded subjects
-        auto_subjects_df = auto_subjects(subjects, auto_date = auto_date)
+    ## Update subjects manually uploaded
+    # Select manually uploaded subjects
+    manual_subjects_df = manual_subjects(subjects, manual_date = manual_date, auto_date = auto_date)
 
-        ## Update subjects manually uploaded
-        # Select manually uploaded subjects
-        manual_subjects_df = manual_subjects(subjects, manual_date = manual_date, auto_date = auto_date)
+    # Include movie_ids to the metadata
+    manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
 
-        # Include movie_ids to the metadata
-        manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
+    ## Combine and clean KSO subjects
+    # Combine all uploaded subjects
+    subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
 
-        ## Combine and clean KSO subjects
-        # Combine all uploaded subjects
-        subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
+    # Define the path to the csv files with initial info to build the db
+    db_csv_info = "../db_starter/db_csv_info/" 
 
-        # Clear duplicated subjects if any
-        subjects = clean_duplicates(subjects, duplicates_csv)
-        
-        ################End of koster specific###############
-    
-    else:
-        # Extract metadata from uploaded subjects
-        subjects_df, subjects_meta = extract_metadata(subjects)
+    # Define the path to the csv file with ids of the duplicated subjects
+    for file in Path(db_csv_info).rglob("*.csv"):
+        if 'duplicat' in file.name:
+            duplicates_csv = file
 
-        # Combine metadata info with the subjects df
-        subjects = pd.concat([subjects_df, subjects_meta], axis=1)
-        
-    ### Update subjects table ###
-    
-    # Set subject_id information as id
-    subjects = subjects.rename(columns={"subject_id": "id"})
-
-    # Set the columns in the right order
-    subjects = subjects[
-        [
-            "id",
-            "subject_type",
-            "filename",
-            "clip_start_time",
-            "clip_end_time",
-            "frame_exp_sp_id",
-            "frame_number",
-            "workflow_id",
-            "subject_set_id",
-            "classifications_count",
-            "retired_at",
-            "retirement_reason",
-            "created_at",
-            "movie_id",
-        ]
-    ]
-
-    # Ensure that subject_ids are not duplicated by workflow
-    subjects = subjects.drop_duplicates(subset='id')
-    
-    # Test table validity
-    db_utils.test_table(subjects, "subjects", keys=["movie_id"])
-
-    # Add values to subjects
-    db_utils.add_to_table(
-        db_path, "subjects", [tuple(i) for i in subjects.values], 14
-    )
+    # Clear duplicated subjects if any
+    subjects = clean_duplicates(subjects, duplicates_csv)
