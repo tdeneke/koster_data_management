@@ -49,21 +49,21 @@ def choose_agg_parameters():
     return agg_users, min_users
 
 
-def choose_workflows():
+def choose_workflows(workflows_df):
     
     layout = widgets.Layout(width='auto', height='40px') #set width and height
     
     # TODO display the workflow ids and versions
     w1 = widgets.Dropdown(
-        options = w_export_pd.workflow_id.unique().tolist(),
-        value = w_export_pd.workflow_id.unique().tolist()[0],
+        options = workflows_df.workflow_id.unique().tolist(),
+        value = workflows_df.workflow_id.unique().tolist()[0],
         description = 'Workflow id:',
         disabled = False,
     )
     
     w2 = widgets.Dropdown(
-        options = list(map(float, w_export_pd.version.unique().tolist())),
-        value = float(w_export_pd.version.unique().tolist()[0]),
+        options = list(map(float, workflows_df.version.unique().tolist())),
+        value = float(workflows_df.version.unique().tolist()[0]),
         description = 'Workflow version:',
         disabled = False,
         display='flex',

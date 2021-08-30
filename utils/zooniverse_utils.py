@@ -9,6 +9,7 @@ from panoptes_client import (
 )
 
 from utils.koster_utils import process_koster_subjects
+import utils.db_utils as db_utils
 
 class AuthenticationError(Exception):
     pass
@@ -124,6 +125,6 @@ def populate_subjects(subjects, project_n, db_path):
 
     # Add values to subjects
     db_utils.add_to_table(
-        args.db_path, "subjects", [tuple(i) for i in subjects.values], 14
+        db_path, "subjects", [tuple(i) for i in subjects.values], 14
     )
     

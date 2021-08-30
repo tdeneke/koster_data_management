@@ -1,6 +1,6 @@
 import io, os, json, csv
 import sqlite3
-import pandas as pdy
+import pandas as pd
 import numpy as np
 from pathlib import Path
 
@@ -186,3 +186,5 @@ def process_koster_subjects(subjects, db_path):
 
     # Clear duplicated subjects if any
     subjects = clean_duplicates(subjects, duplicates_csv)
+    
+    return subjects
