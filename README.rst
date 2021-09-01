@@ -23,7 +23,7 @@ KSO creates a SQLite database to link all information related to the movies and 
    :align: center
    :alt: "(Entity relationship diagram of the SQLite database of the Koster Seafloor Observatory.")
 
-Currently, the system is built around a series of tutorials (python notebooks) that users can run to: 
+Currently, the system is built around a series of tutorials (Jupyter notebooks) that users can run to: 
 
 * Upload videos to the server
 * Upload videos to a Zooniverse project
@@ -35,7 +35,7 @@ Quickstart
 --------------------
 
 .. image:: https://mybinder.org/badge_logo.svg
- :target: https://mybinder.org/v2/gh/ocean-data-factory-sweden/koster_data_management/main
+   :target: https://mybinder.org/v2/gh/ocean-data-factory-sweden/koster_data_management/main
 
 
 Requirements
@@ -50,16 +50,33 @@ Installation Instructions
 Clone this repository
 ~~~~
 
-Follow the `instructions to clone a Github repo
+For those with a Github account or git installed simply clone this
+repository using
+``git clone https://github.com/ocean-data-factory-sweden/koster_data_management.git``
+followed by ``cd koster_data_management``.
+
+What if I don't have Github installed?
+
+-  Option 1: Github installation
+
+   -  Windows: Download and install `here`_
+   -  Mac (Homebrew): ``brew install git``
+   -  Linux (Debian & Ubuntu): ``sudo apt-get install git``
+
+-  Option 2: Manual download
+
+   -  Find “Clone or Download” button on repository website and click
+      “Download zip”
+
+Comprehensive `instructions to clone a Github repo
 <https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository-from-github/cloning-a-repository/>`_ 
 
+Download `Anaconda <https://docs.anaconda.com/anaconda/install/index.html>`. Anaconda allows you to create virtual Python environments for and features a simple package manager to keep track of dependencies. 
 
-Download Anaconda
-
-Create the inital information for the database 
+Create the initial information for the database 
 ~~~~
 
-You will need to create a directory in the db_starter with information about the movies, sites and species of interest. You can `download a template of the csv files <https://drive.google.com/file/d/1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn/view?usp=sharing/>`_ or specify the Google Drive ID of a zipped folder containing these files (e.g. 1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn).
+You will need to create a directory in the db_starter folder with information about the movies, sites and species of interest. You can `download a template of the csv files <https://drive.google.com/file/d/1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn/view?usp=sharing/>`_ or specify the Google Drive ID of a zipped folder containing these files (e.g. 1PZGRoSY_UpyLfMhRphMUMwDXw4yx1_Fn).
 
 
 Link your movies to the database 
