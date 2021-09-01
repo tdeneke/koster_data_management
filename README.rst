@@ -4,8 +4,9 @@ Koster Seafloor Observatory - Data management
 
 The Koster Seafloor Observatory is an open-source, citizen science and machine learning approach to analyse subsea movies.
 
-.. image:: https://panoptes-uploads.zooniverse.org/project_attached_image/e1ee7635-8a04-4055-9397-3743608476a0.png
-    :alt: "(Overview of the three main modules and the components of the Koster Seafloor Observatory.")
+.. image:: images/high-level-overview.png
+   :align: center
+   :alt: "(Overview of the three main modules and the components of the Koster Seafloor Observatory.")
     
 You can find out more about the project at https://www.zooniverse.org/projects/victorav/the-koster-seafloor-observatory
 
@@ -19,7 +20,8 @@ KSO creates a SQLite database to link all information related to the movies and 
 
 
 .. image:: https://panoptes-uploads.zooniverse.org/project_attached_image/61225451-fb50-4b35-8ef4-91a065e7ff50.png
-    :alt: "(Entity relationship diagram of the SQLite database of the Koster Seafloor Observatory.")
+   :align: center
+   :alt: "(Entity relationship diagram of the SQLite database of the Koster Seafloor Observatory.")
 
 Currently, the system is built around a series of tutorials (python notebooks) that users can run to: 
 
@@ -28,6 +30,13 @@ Currently, the system is built around a series of tutorials (python notebooks) t
 * Upload frames to a Zooniverse project
 * Analyse Zooniverse classifications
 * Download and format Zooniverse classifications 
+
+Quickstart
+--------------------
+
+.. image:: https://mybinder.org/badge_logo.svg
+ :target: https://mybinder.org/v2/gh/ocean-data-factory-sweden/koster_data_management/main
+
 
 Requirements
 ------------
@@ -38,7 +47,7 @@ Requirements
 Installation Instructions
 -------------------------
 
-CLone this repository
+Clone this repository
 ~~~~
 
 Follow the `instructions to clone a Github repo
