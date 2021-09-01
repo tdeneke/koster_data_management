@@ -71,7 +71,10 @@ What if I don't have Github installed?
 Comprehensive `instructions to clone a Github repo
 <https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository-from-github/cloning-a-repository/>`_ 
 
-Download `Anaconda <https://docs.anaconda.com/anaconda/install/index.html>`. Anaconda allows you to create virtual Python environments for and features a simple package manager to keep track of dependencies. 
+Download Anaconda
+~~~~
+
+`Click here to download <https://docs.anaconda.com/anaconda/install/index.html>`_. Anaconda allows you to create virtual Python environments for and features a simple package manager to keep track of dependencies. 
 
 Create the initial information for the database 
 ~~~~
