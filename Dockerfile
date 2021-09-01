@@ -16,7 +16,7 @@ RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
 ADD https://api.github.com/repos/ocean-data-factory-sweden/koster_data_management/git/refs/heads/main version.json
-RUN git clone -b victor-wildlife-dev https://github.com/ocean-data-factory-sweden/koster_data_management.git
+RUN git clone https://github.com/ocean-data-factory-sweden/koster_data_management.git
 WORKDIR /usr/src/app/koster_data_management
 RUN pip3 install -r requirements.txt
 RUN jupyter nbextension install --user --py widgetsnbextension
