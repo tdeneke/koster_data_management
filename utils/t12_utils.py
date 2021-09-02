@@ -32,7 +32,7 @@ def choose_agg_parameters():
     min_users = widgets.IntSlider(
         value=3,
         min=1,
-        max=50,
+        max=20,
         step=1,
         description='Min numbers of users:',
         disabled=False,
@@ -55,8 +55,8 @@ def choose_workflows(workflows_df):
     
     # TODO display the workflow ids and versions
     w1 = widgets.Dropdown(
-        options = workflows_df.workflow_id.unique().tolist(),
-        value = workflows_df.workflow_id.unique().tolist()[0],
+        options = workflows_df.display_name.unique().tolist(),
+        value = workflows_df.display_name.unique().tolist()[0],
         description = 'Workflow id:',
         disabled = False,
     )
@@ -64,7 +64,7 @@ def choose_workflows(workflows_df):
     w2 = widgets.Dropdown(
         options = list(map(float, workflows_df.version.unique().tolist())),
         value = float(workflows_df.version.unique().tolist()[0]),
-        description = 'Workflow version:',
+        description = 'Minimum workflow version:',
         disabled = False,
         display='flex',
         flex_flow='column',
@@ -86,7 +86,9 @@ def choose_workflows(workflows_df):
     #w3.observe(on_change)
     display(w3)
     
-    return w1, w2, w3
+    w1_id = workflows_df[workflows_df.display_name==w1].workflow_id.unique()[0]
+    
+    return w1_id, w2, w3
     
           
 def get_classifications(workflow_id: int, workflow_version: float, subj_type, class_df, subjects_df):
@@ -336,10 +338,10 @@ def launch_viewer(df: pd.DataFrame, total_df: pd.DataFrame):
             if change['type'] == 'change' and change['name'] == 'value':
                 clear_output()
                 subject_df = df
-                w = widgets.Dropdown(
+                w = widgets.Combobox(
                     options=subject_df.subject_ids.unique().tolist(),
-                    value=subject_df.subject_ids.unique().tolist()[0],
                     description='Subject id:',
+                    ensure_option=True,
                     disabled=False,
                 )
                 w.observe(on_change)
