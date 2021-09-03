@@ -61,7 +61,7 @@ def retrieve_zoo_info(username: str,
         # Add df to dictionary
         info_df[info_n] = export_df
         
-        print(info_n, "were retrieved succesfully")
+        print(info_n, "were retrieved successfully")
     
 
     return info_df
