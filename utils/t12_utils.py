@@ -57,7 +57,7 @@ def choose_workflows(workflows_df):
     w1 = widgets.Dropdown(
         options = workflows_df.display_name.unique().tolist(),
         value = workflows_df.display_name.unique().tolist()[0],
-        description = 'Workflow id:',
+        description = 'Workflow name:',
         disabled = False,
     )
     
@@ -86,9 +86,8 @@ def choose_workflows(workflows_df):
     #w3.observe(on_change)
     display(w3)
     
-    w1_id = workflows_df[workflows_df.display_name==w1].workflow_id.unique()[0]
     
-    return w1_id, w2, w3
+    return w1, w2, w3
     
           
 def get_classifications(workflow_id: int, workflow_version: float, subj_type, class_df, subjects_df):
@@ -339,7 +338,7 @@ def launch_viewer(df: pd.DataFrame, total_df: pd.DataFrame):
                 clear_output()
                 subject_df = df
                 w = widgets.Combobox(
-                    options=subject_df.subject_ids.unique().tolist(),
+                    options=list(subject_df.subject_ids.apply(str).unique()),
                     description='Subject id:',
                     ensure_option=True,
                     disabled=False,
@@ -354,7 +353,7 @@ def launch_viewer(df: pd.DataFrame, total_df: pd.DataFrame):
         global subject_df
         with out:
             if change['type'] == 'change' and change['name'] == 'value':
-                a = view_subject(change['new'], subject_df, total_df)
+                a = view_subject(int(change['new']), subject_df, total_df)
                 clear_output()
                 display(a)
 
