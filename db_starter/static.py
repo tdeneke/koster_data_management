@@ -25,10 +25,13 @@ def add_sites(sites_csv, db_path):
     
     # Select relevant fields
     sites_df = sites_df[
-        ["koster_site_id", "siteName", "decimalLatitude", "decimalLongitude", "geodeticDatum", "countryCode"]
+        ["site_id", "siteName", "decimalLatitude", "decimalLongitude", "geodeticDatum", "countryCode"]
     ]
     
-    ### TODO add a roadblock to prevent empty lat/long/datum/countrycode
+    # Roadblock to prevent empty lat/long/datum/countrycode
+    db_utils.test_table(
+        sites_df, "sites", sites_df.columns
+    )
 
     # Add values to sites table
     db_utils.add_to_table(
