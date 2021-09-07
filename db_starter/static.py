@@ -72,9 +72,12 @@ def add_movies(movies_csv, movies_path, db_path):
                 movies_df[["fps", "duration"]] = pd.DataFrame(missing_fps_movies["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
             
                 # TODO update the local movies.csv file with the new fps and duration information and upload to Google Drive csv safe copy
-                
+                # Update the local movies.csv file with the new fps and duration information
+                movies_df.drop(["Fpath","exists"], axis=1).to_csv(movies_csv,index=False)
+    
+    
                 print(
-                    f" The fps and duration of {len(missing_fps_movies)} movies have been succesfully added"
+                    f" The fps and duration of {len(missing_fps_movies)} movies have been succesfully added to the local csv file"
                 )
                 
                 
@@ -86,10 +89,9 @@ def add_movies(movies_csv, movies_path, db_path):
     #except ValueError:
     #    print("Invalid eventDate column")
 
-    # Connect to koster database
+    # Connect to database
     conn = db_utils.create_connection(db_path)
     
-    # TODO add roadblock to check all movies have site references
     # Reference movies with their respective sites
     sites_df = pd.read_sql_query("SELECT id, siteName FROM sites", conn)
     sites_df = sites_df.rename(columns={"id": "Site_id"})
@@ -101,9 +103,14 @@ def add_movies(movies_csv, movies_path, db_path):
     
     # Select only those fields of interest
     movies_db = movies_df[
-        ["koster_movie_id", "filename", "created_on", "fps", "duration", "Author", "Site_id", "Fpath"]
+        ["movie_id", "filename", "created_on", "fps", "duration", "Author", "Site_id", "Fpath"]
     ]
 
+    # Roadblock to prevent empty information
+    db_utils.test_table(
+        movies_db, "movies", movies_db.columns
+    )
+    
     # Add values to movies table
     db_utils.add_to_table(
         db_path, "movies", [tuple(i) for i in movies_db.values], 8
@@ -117,8 +124,13 @@ def add_species(species_csv, db_path):
     
     # Select relevant fields
     species_df = species_df[
-        ["koster_species_id", "commonName", "scientificName", "taxonRank", "kingdom"]
+        ["species_id", "commonName", "scientificName", "taxonRank", "kingdom"]
     ]
+    
+    # Roadblock to prevent empty information
+    db_utils.test_table(
+        species_df, "species", species_df.columns
+    )
     
     # Add values to species table
     db_utils.add_to_table(
