@@ -26,17 +26,13 @@ def get_movie_parameters(df, movies_csv):
     for parameter in parameters:
     
         # Check if the parameter is missing from any movie
-        if ~df[parameter].isna().any():
-            print(
-                    f"All movies have {parameter} information."
-                )
-           
-        else:
+        if df[parameter].isna().any():
+            
+            # Select only those movies with the missing parameter
+            miss_par_df = df[df[parameter].isna()]
             
             if parameter in ["fps","duration"]:
-                # Select only those movies with the missing parameter
-                miss_par_df = df[df[parameter].isna()]
-
+                
                 # Prevent missing parameters from movies that don't exists
                 if len(miss_par_df[~miss_par_df.exists]) > 0:
                     print(
@@ -126,16 +122,17 @@ def add_movies(movies_csv, movies_path, db_path):
     sites_df = pd.read_sql_query("SELECT id, siteName FROM sites", conn)
     sites_df = sites_df.rename(columns={"id": "Site_id"})
 
+
+    
     movies_df = pd.merge(
         movies_df, sites_df, how="left", on="siteName"
     )
 
-    
     # Select only those fields of interest
     movies_db = movies_df[
         ["movie_id", "filename", "created_on", "fps", "duration", "survey_start", "survey_end", "Author", "Site_id", "Fpath"]
     ]
-
+    
     # Roadblock to prevent empty information
     db_utils.test_table(
         movies_db, "movies", movies_db.columns
