@@ -32,18 +32,19 @@ def get_movie_parameters(df, movies_csv):
                 )
            
         else:
-            # Select only those movies with the missing parameter
-            miss_par_df = df[df[parameter].isna()]
-
-            # Prevent missing parameters from movies that don't exists
-            if len(miss_par_df[~miss_par_df.exists]) > 0:
-                print(
-                    f"There are {len(miss_par_df) - miss_par_df.exists.sum()} out of {len(miss_par_df)} movies missing from the server without {parameter} information. The movies are {miss_par_df[~miss_par_df.exists].filename.tolist()}"
-                )
-
-                return
-
+            
             if parameter in ["fps","duration"]:
+                # Select only those movies with the missing parameter
+                miss_par_df = df[df[parameter].isna()]
+
+                # Prevent missing parameters from movies that don't exists
+                if len(miss_par_df[~miss_par_df.exists]) > 0:
+                    print(
+                        f"There are {len(miss_par_df) - miss_par_df.exists.sum()} out of {len(miss_par_df)} movies missing from the server without {parameter} information. The movies are {miss_par_df[~miss_par_df.exists].filename.tolist()}"
+                    )
+
+                    return
+                
                 # Set the fps and duration of each movide
                 df.loc[df["fps"].isna()|df["duration"].isna(), "fps": "duration"] = pd.DataFrame(df["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
             
