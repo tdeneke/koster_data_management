@@ -19,7 +19,7 @@ KSO creates a SQLite database to link all information related to the movies and 
 
 
 
-.. image:: https://panoptes-uploads.zooniverse.org/project_attached_image/61225451-fb50-4b35-8ef4-91a065e7ff50.png
+.. image:: images/Database_diagram.png
    :align: center
    :alt: "(Entity relationship diagram of the SQLite database of the Koster Seafloor Observatory.")
 
