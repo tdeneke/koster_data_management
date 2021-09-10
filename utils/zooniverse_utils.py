@@ -1,3 +1,4 @@
+##ZOOniverse utils
 import io
 import pandas as pd
 import json
@@ -9,6 +10,7 @@ from panoptes_client import (
 )
 
 from utils.koster_utils import process_koster_subjects
+from utils.spyfish_utils import process_spyfish_subjects
 import utils.db_utils as db_utils
 
 class AuthenticationError(Exception):
@@ -88,12 +90,19 @@ def populate_subjects(subjects, project_n, db_path):
         subjects = process_koster_subjects(subjects, db_path)
         
     else:
+        
         # Extract metadata from uploaded subjects
         subjects_df, subjects_meta = extract_metadata(subjects)
-
+        
         # Combine metadata info with the subjects df
         subjects = pd.concat([subjects_df, subjects_meta], axis=1)
         
+        #Check if the Zooniverse project is the Spyfish
+        if str(project_n)=="14054":
+            
+            subjects = process_spyfish_subjects(subjects, db_path)
+
+    
     # Set subject_id information as id
     subjects = subjects.rename(columns={"subject_id": "id"})
 
