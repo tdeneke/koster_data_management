@@ -171,11 +171,11 @@ def process_koster_subjects(subjects, db_path):
 
     # Include movie_ids to the metadata
     manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
-
+   
     ## Combine and clean KSO subjects
     # Combine all uploaded subjects
     subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
-
+    
     # Define the path to the csv files with initial info to build the db
     db_csv_info = "../db_starter/db_csv_info/" 
 
