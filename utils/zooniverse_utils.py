@@ -136,4 +136,37 @@ def populate_subjects(subjects, project_n, db_path):
     db_utils.add_to_table(
         db_path, "subjects", [tuple(i) for i in subjects.values], 14
     )
+
+    return subjects
+
+def populate_annotations(subjects, annotations, db_path):
+    
+    # Rename column in subjects table to match classifications
+    subjects_df = subjects.rename(
+        columns={"id": "subject_id", "frame_exp_sp_id": "species_id"}
+    )
+
+    # Ensure that subject_ids are not duplicated by workflow
+    subjects_df = subjects_df.drop_duplicates(subset='subject_id')
+
+    # Combine annotation and subject information
+    annotations_df = pd.merge(
+        annotations,
+        subjects_df,
+        how="left",
+        left_on="subject_ids",
+        right_on="subject_id",
+        validate="many_to_one",
+    )[["species_id", "x", "y", "w", "h", "subject_id"]]
+ 
+    # Test table validity
+    db_utils.test_table(annotations_df, "agg_annotations_frame", keys=["movie_id"])
+
+    # Add values to agg_annotations_frame
+    db_utils.add_to_table(
+        db_path,
+        "agg_annotations_frame",
+        [(None,) + tuple(i) for i in annotations_df.values],
+        7,
+    )
     

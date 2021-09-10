@@ -3,15 +3,16 @@ import numpy as np
 import json, io
 from ast import literal_eval
 from utils.zooniverse_utils import auth_session
-#from db_setup.process_frames import filter_bboxes
+import utils.db_utils as db_utils
+from utils.koster_utils import filter_bboxes
 from utils import db_utils
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 from IPython.display import HTML, display, update_display, clear_output
 import ipywidgets as widgets
 from ipywidgets import interact
 import asyncio
 
-def choose_agg_parameters():
+def choose_agg_parameters(subject_type: str):
     agg_users = widgets.FloatSlider(
         value=0.8,
         min=0,
@@ -46,7 +47,61 @@ def choose_agg_parameters():
         style= {'description_width': 'initial'}
     )
     display(min_users)
-    return agg_users, min_users
+    if subject_type == "frame":
+        agg_obj = widgets.FloatSlider(
+        value=0.8,
+        min=0,
+        max=1.0,
+        step=0.1,
+        description='Object threshold:',
+        disabled=False,
+        continuous_update=False,
+        orientation='horizontal',
+        readout=True,
+        readout_format='.1f',
+        display='flex',
+        flex_flow='column',
+        align_items='stretch',
+        style= {'description_width': 'initial'}
+        )
+        display(agg_obj)
+        agg_iou = widgets.FloatSlider(
+            value=0.5,
+            min=0,
+            max=1.0,
+            step=0.1,
+            description='IOU Epsilon:',
+            disabled=False,
+            continuous_update=False,
+            orientation='horizontal',
+            readout=True,
+            readout_format='.1f',
+            display='flex',
+            flex_flow='column',
+            align_items='stretch',
+            style= {'description_width': 'initial'}
+        )
+        display(agg_iou)
+        agg_iua = widgets.FloatSlider(
+            value=0.8,
+            min=0,
+            max=1.0,
+            step=0.1,
+            description='Inter user agreement:',
+            disabled=False,
+            continuous_update=False,
+            orientation='horizontal',
+            readout=True,
+            readout_format='.1f',
+            display='flex',
+            flex_flow='column',
+            align_items='stretch',
+            style= {'description_width': 'initial'}
+        )
+        display(agg_iua)
+        return agg_users, min_users, agg_obj, agg_iou, agg_iua
+    else:
+        return agg_users, min_users
 
 
 def choose_workflows(workflows_df):
@@ -119,9 +174,13 @@ def get_classifications(workflow_id: int, workflow_version: float, subj_type, cl
     return total_df, class_df
 
 
-def aggregrate_classifications(df, subj_type, agg_users, min_users):
+def aggregrate_classifications(df, subj_type, agg_params):
     
     print("Aggregrating the classifications")
+    if subj_type == "frame":
+        agg_users, min_users, agg_obj, agg_iou, agg_iua = [i.value for i in agg_params]
+    else:
+        agg_users, min_users = [i.value for i in agg_params]
     
     # Process the classifications of clips or frames
     if subj_type=="clip":
@@ -155,8 +214,56 @@ def aggregrate_classifications(df, subj_type, agg_users, min_users):
         agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
     
     if subj_type=="frame":
-        # TODO
-        print("WIP")
+        # Get prepared annotations
+        agg_annot_df = agg_class_df[agg_class_df["x"].notnull()]
+
+        new_rows = []
+        for name, group in agg_annot_df.groupby(["movie_id", "label", "start_frame"]):
+            movie_id, label, start_frame = name
+
+            total_users = agg_class_df[
+                (agg_class_df.movie_id == movie_id)
+                & (agg_class_df.label == label)
+                & (agg_class_df.start_frame == start_frame)
+            ]["user"].nunique()
+
+            # Filter bboxes using IOU metric (essentially a consensus metric)
+            # Keep only bboxes where mean overlap exceeds this threshold
+            indices, new_group = filter_bboxes(
+                total_users=total_users,
+                users=[i[0] for i in group.values],
+                bboxes=[np.array((i[4], i[5], i[6], i[7])) for i in group.values],
+                obj=agg_obj,
+                eps=agg_iou,
+                iua=agg_iua,
+            )
+
+            subject_ids = [i[8] for i in group.values[indices]]
+
+            for ix, box in zip(subject_ids, new_group):
+                new_rows.append(
+                    (
+                        movie_id,
+                        label,
+                        start_frame,
+                        ix,
+                    )
+                    + tuple(box)
+                )
+
+        agg_class_df = pd.DataFrame(
+            new_rows,
+            columns=[
+                "movie_id",
+                "label",
+                "start_frame",
+                "subject_id",
+                "x",
+                "y",
+                "w",
+                "h",
+            ],
+        )
 
     print("Classifications aggregated")
     return agg_class_df
@@ -229,34 +336,78 @@ def process_clips(df: pd.DataFrame):
 
 
 def process_frames(df: pd.DataFrame):
-    
+
+    # Extract the video filename and annotation details
+    subject_data_df = pd.DataFrame(
+        df["subject_data"]
+        .apply(
+            lambda x: [
+                {
+                    "movie_id": v["movie_id"],
+                    "frame_number": v["frame_number"],
+                    "label": v["label"],
+                }
+                for k, v in json.loads(x).items()  # if v['retired']
+            ][0],
+            1,
+        )
+        .tolist()
+    )
+
+    df = pd.concat(
+        [df.reset_index().drop("index", 1), subject_data_df],
+        axis=1,
+    )
+
+    df = df[[
+        "classification_id",
+        "user_name",
+        "annotations",
+        "subject_data",
+        "subject_ids",
+        "movie_id",
+        "frame_number",
+        "label",
+    ]]
+
+    # Convert to dictionary entries
+    df["movie_id"] = df["movie_id"].apply(lambda x: {"movie_id": x})
+    df["frame_number"] = df["frame_number"].apply(
+        lambda x: {"frame_number": x}
+    )
+    df["label"] = df["label"].apply(lambda x: {"label": x})
+    df["user_name"] = df["user_name"].apply(lambda x: {"user_name": x})
+    df["classification_id"] = df["classification_id"].apply(lambda x: {"classification_id": x})
+    df["subject_ids"] = df["subject_ids"].apply(lambda x: {"subject_ids": x})
     df["annotation"] = df["annotations"].apply(
         lambda x: literal_eval(x)[0]["value"], 1
     )
 
     # Extract annotation metadata
     df["annotation"] = df[
-        ["movie_id", "frame_number", "label", "annotation", "user_name", "subject_id"]
+        ["classification_id", "movie_id", "frame_number", "label", "annotation", "user_name", "subject_ids"]
     ].apply(
         lambda x: [
             OrderedDict(
-                list(x["movie_id"].items())
+                list(x["classification_id"].items())
+                + list(x["movie_id"].items())
                 + list(x["frame_number"].items())
                 + list(x["label"].items())
                 + list(x["annotation"][i].items())
                 + list(x["user_name"].items())
-                + list(x["subject_id"].items())
+                + list(x["subject_ids"].items())
             )
             for i in range(len(x["annotation"]))
         ]
         if len(x["annotation"]) > 0
         else [
             OrderedDict(
-                list(x["movie_id"].items())
+                list(x["classification_id"].items())
+                + list(x["movie_id"].items())
                 + list(x["frame_number"].items())
                 + list(x["label"].items())
                 + list(x["user_name"].items())
-                + list(x["subject_id"].items())
+                + list(x["subject_ids"].items())
             )
         ],
         1,
@@ -266,6 +417,7 @@ def process_frames(df: pd.DataFrame):
     ds = [
         OrderedDict(
             {
+                "classification_id": i["classification_id"],
                 "user": i["user_name"],
                 "movie_id": i["movie_id"],
                 "label": i["label"],
@@ -274,14 +426,14 @@ def process_frames(df: pd.DataFrame):
                 "y": int(i["y"]) if "y" in i else None,
                 "w": int(i["width"]) if "width" in i else None,
                 "h": int(i["height"]) if "height" in i else None,
-                "subject_id": int(i["subject_id"]) if "subject_id" in i else None,
+                "subject_ids": int(i["subject_ids"]) if "subject_ids" in i else None,
             }
         )
         for i in df.annotation.explode()
         if i is not None and i is not np.nan
     ]
 
-    return df
+    return pd.DataFrame(ds)
 
 def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
     try:
@@ -292,7 +444,6 @@ def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
     if len(annot_df[annot_df.subject_ids == subject_id]) == 0: 
         raise Exception("Subject not found in provided annotations")
        
-    print(df[df.subject_ids == subject_id].columns)
     # Get the HTML code to show the selected subject
     if ".mp4" in subject_location:
         html_code =f"""

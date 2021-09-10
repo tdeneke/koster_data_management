@@ -1,9 +1,9 @@
 mydia==2.2.1
 requests==2.21.0
-numpy==1.16.4
+numpy==1.19.2
 pandas==1.0.3
-panoptes_client==1.4.0
-opencv_python==4.1.1.26
+panoptes_client
+opencv_python==4.1.2.30
 Pillow==8.3.2
 scikit_learn==0.23.0
 python_magic==0.4.18

@@ -127,6 +127,7 @@ def add_movies(movies_csv, movies_path, db_path):
     movies_df = pd.merge(
         movies_df, sites_df, how="left", on="siteName"
     )
+    
 
     # Select only those fields of interest
     movies_db = movies_df[

@@ -2,8 +2,9 @@ import io, os, json, csv
 import sqlite3
 import pandas as pd
 import numpy as np
+from sklearn.cluster import DBSCAN
 from pathlib import Path
-
+from collections import OrderedDict, Counter
 from datetime import datetime
 import utils.db_utils as db_utils
 
@@ -86,11 +87,9 @@ def get_movies_id(df, db_path):
     diff_filenames = set(df_unique).difference(movies_df_unique)
     
     if diff_filenames:
-        print(
+        raise ValueError(
             f"There are clip subjects that don't have movie_id. The movie filenames are {diff_filenames}"
         )
-        
-        raise
     
     # Reference the manually uploaded subjects with the movies table
     df = pd.merge(df, movies_df, how="left", on="movie_filename")
@@ -188,3 +187,66 @@ def process_koster_subjects(subjects, db_path):
     subjects = clean_duplicates(subjects, duplicates_csv)
     
     return subjects
+
+def bb_iou(boxA, boxB):
+
+    # Compute edges
+    temp_boxA = boxA.copy()
+    temp_boxB = boxB.copy()
+    temp_boxA[2], temp_boxA[3] = (
+        temp_boxA[0] + temp_boxA[2],
+        temp_boxA[1] + temp_boxA[3],
+    )
+    temp_boxB[2], temp_boxB[3] = (
+        temp_boxB[0] + temp_boxB[2],
+        temp_boxB[1] + temp_boxB[3],
+    )
+
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(temp_boxA[0], temp_boxB[0])
+    yA = max(temp_boxA[1], temp_boxB[1])
+    xB = min(temp_boxA[2], temp_boxB[2])
+    yB = min(temp_boxA[3], temp_boxB[3])
+
+    # compute the area of intersection rectangle
+    interArea = abs(max((xB - xA, 0)) * max((yB - yA), 0))
+    if interArea == 0:
+        return 1
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = abs((temp_boxA[2] - temp_boxA[0]) * (temp_boxA[3] - temp_boxA[1]))
+    boxBArea = abs((temp_boxB[2] - temp_boxB[0]) * (temp_boxB[3] - temp_boxB[1]))
+
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the intersection area
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+
+    # return the intersection over union value
+    return 1 - iou
+
+
+def filter_bboxes(total_users, users, bboxes, obj, eps, iua):
+
+    # If at least half of those who saw this frame decided that there was an object
+    user_count = pd.Series(users).nunique()
+    if user_count / total_users >= obj:
+        # Get clusters of annotation boxes based on iou criterion
+        cluster_ids = DBSCAN(min_samples=1, metric=bb_iou, eps=eps).fit_predict(bboxes)
+        # Count the number of users within each cluster
+        counter_dict = Counter(cluster_ids)
+        # Accept a cluster assignment if at least 80% of users agree on annotation
+        passing_ids = [k for k, v in counter_dict.items() if v / user_count >= iua]
+
+        indices = np.isin(cluster_ids, passing_ids)
+
+        final_boxes = []
+        for i in passing_ids:
+            # Compute median over all accepted bounding boxes
+            boxes = np.median(np.array(bboxes)[np.where(cluster_ids == i)], axis=0)
+            final_boxes.append(boxes)
+
+        return indices, final_boxes
+
+    else:
+        return [], bboxes
