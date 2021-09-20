@@ -136,6 +136,13 @@ def populate_subjects(subjects, project_n, db_path):
 
     # Add values to subjects
     db_utils.add_to_table(db_path, "subjects", [tuple(i) for i in subjects.values], 14)
+    
+    # Print how many subjects are in the db
+    # Query id and subject type from the subjects table
+    subjects_df = pd.read_sql_query("SELECT id, subject_type FROM subjects", conn)
+    frame_subjs = subjects_df[subjects_df["subject_type"]=="frame"].shape[0]
+    clip_subjs = subjects_df[subjects_df["subject_type"]=="clip"].shape[0]
+    print("The database has a total of", frame_subjs, "frame subjects and", clip_subjs, "clip subjects have been updated")
 
     return subjects
 
