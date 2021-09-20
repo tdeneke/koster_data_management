@@ -129,8 +129,8 @@ def populate_subjects(subjects, project_n, db_path):
     ]
 
     # Ensure that subject_ids are not duplicated by workflow
-    subjects = subjects.drop_duplicates(subset="id")
-
+    subjects = subjects.drop_duplicates(subset=["id","frame_exp_sp_id"],keep= 'last')
+                                        
     # Test table validity
     db_utils.test_table(subjects, "subjects", keys=["movie_id"])
 
