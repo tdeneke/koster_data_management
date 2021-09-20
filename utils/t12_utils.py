@@ -292,7 +292,7 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
     return agg_class_df
 
 
-def process_clips(df: pd.DataFrame):
+def process_clips(df: pd.DataFrame, subjects: pd.DataFrame):
 
     # Create an empty list
     rows_list = []
@@ -352,12 +352,30 @@ def process_clips(df: pd.DataFrame):
         how="left",
         on="classification_id",
     )
+    
+    # Add cleaned subject information based on subject_ids
+    annot_df = pd.merge(
+        annot_df,
+        subjects,
+        how="left",
+        left_on="subject_ids",
+        right_on="id",
+    ) 
 
-    annot_df["retired"] = annot_df["subject_data"].apply(
-        lambda x: [v["retired"] for k, v in json.loads(x).items()][0]
-    )
-
-    return annot_df
+    #Select only relevant columns
+    annot_df = annot_df[
+        [
+            "classification_id",
+            "label",
+            "how_many", 
+            "first_seen",
+            "user_name",
+            "subject_ids",
+            "movie_id",
+        ]
+    ]
+    
+    return pd.DataFrame(annot_df)
 
 
 def process_frames(df: pd.DataFrame, subjects: pd.DataFrame):
