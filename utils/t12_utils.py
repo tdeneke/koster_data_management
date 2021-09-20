@@ -181,7 +181,7 @@ def get_classifications(
     return total_df, class_df
 
 
-def aggregrate_classifications(df, subj_type, agg_params):
+def aggregrate_classifications(df, subj_type, subjects, agg_params):
 
     print("Aggregrating the classifications")
     if subj_type == "frame":
@@ -191,17 +191,17 @@ def aggregrate_classifications(df, subj_type, agg_params):
 
     # Process the classifications of clips or frames
     if subj_type == "clip":
-        agg_class_df = process_clips(df)
+        agg_class_df = process_clips(df, subjects)
 
     if subj_type == "frame":
-        agg_class_df = process_frames(df)
+        agg_class_df = process_frames(df, subjects)
 
     # Calculate the number of users that classified each subject
     agg_class_df["n_users"] = agg_class_df.groupby("subject_ids")[
         "classification_id"
     ].transform("nunique")
 
-    # Select frames with at least n different user classifications
+    # Select classifications with at least n different user classifications
     agg_class_df = agg_class_df[agg_class_df.n_users >= min_users]
 
     # Calculate the proportion of users that agreed on their annotations
@@ -220,10 +220,11 @@ def aggregrate_classifications(df, subj_type, agg_params):
         agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
 
     if subj_type == "frame":
+        
+        ############################ To update from here #######
+        
         # Get prepared annotations
         agg_annot_df = agg_class_df[agg_class_df["x"].notnull()]
-
-        print(agg_annot_df.columns)
 
         new_rows = []
         col_list = list(agg_annot_df.columns)
@@ -233,18 +234,18 @@ def aggregrate_classifications(df, subj_type, agg_params):
             col_list.index("y"),
             col_list.index("w"),
             col_list.index("h"),
-            col_list.index("user"),
+            col_list.index("user_name"),
             col_list.index("subject_ids"),
         )
 
-        for name, group in agg_annot_df.groupby(["movie_id", "label", "start_frame"]):
+        for name, group in agg_annot_df.groupby(["movie_id", "label", "frame_number"]):
             movie_id, label, start_frame = name
 
             total_users = agg_class_df[
                 (agg_class_df.movie_id == movie_id)
                 & (agg_class_df.label == label)
                 & (agg_class_df.start_frame == start_frame)
-            ]["user"].nunique()
+            ]["user_name"].nunique()
 
             # Filter bboxes using IOU metric (essentially a consensus metric)
             # Keep only bboxes where mean overlap exceeds this threshold
@@ -359,113 +360,71 @@ def process_clips(df: pd.DataFrame):
     return annot_df
 
 
-def process_frames(df: pd.DataFrame):
+def process_frames(df: pd.DataFrame, subjects: pd.DataFrame):
 
-    # Extract the video filename and annotation details
-    subject_data_df = pd.DataFrame(
-        df["subject_data"]
-        .apply(
-            lambda x: [
-                {
-                    "movie_id": v["movie_id"],
-                    "frame_number": v["frame_number"] if "frame_number" in v else v["frame"],
-                    "label": v["label"],
-                }
-                for k, v in json.loads(x).items() #if v['retired']
-            ][0],
-            1,
-        )
-        .tolist()
+    # Create an empty list
+    rows_list = []
+    
+    # Loop through each classification submitted by the users and flatten them
+    for index, row in df.iterrows():
+        # Load annotations as json format
+        annotations = json.loads(row["annotations"])
+
+        # Select the information from all the labelled animals (e.g. task = T0)
+        for ann_i in annotations:
+            if ann_i["task"] == "T0":
+
+                # Select each species annotated and flatten the relevant answers
+                for i in ann_i["value"]:
+                    choice_i = {
+                        "classification_id": row["classification_id"],
+                        # If value_i is not empty flatten labels
+                        "x": int(i["x"]) if "x" in i else None,
+                        "y": int(i["y"]) if "y" in i else None,
+                        "w": int(i["width"]) if "width" in i else None,
+                        "h": int(i["height"]) if "height" in i else None,
+                        "label": str(i["tool_label"]) if "tool_label" in i else None,
+                    }
+
+                    rows_list.append(choice_i)
+
+    # Create a data frame with annotations as rows
+    flat_annot_df = pd.DataFrame(
+        rows_list, columns=["classification_id", "x", "y", "w", "h", "label"]
     )
+    
+    # Add other classification information to the flatten classifications
+    annot_df = pd.merge(
+        flat_annot_df,
+        df,
+        how="left",
+        on="classification_id",
+    ) 
 
-    df = pd.concat(
-        [df.reset_index().drop("index", 1), subject_data_df],
-        axis=1,
-    )
-
-    df = df[
+    # Add cleaned subject information based on subject_ids
+    annot_df = pd.merge(
+        annot_df,
+        subjects,
+        how="left",
+        left_on="subject_ids",
+        right_on="id",
+    ) 
+    
+    #Select only relevant columns
+    annot_df = annot_df[
         [
             "classification_id",
+            "x", "y", "w", "h", 
+            "label",
             "user_name",
-            "annotations",
-            "subject_data",
             "subject_ids",
             "movie_id",
             "frame_number",
-            "label",
+            "frame_exp_sp_id",
         ]
     ]
-
-    # Convert to dictionary entries
-    df["movie_id"] = df["movie_id"].apply(lambda x: {"movie_id": x})
-    df["frame_number"] = df["frame_number"].apply(lambda x: {"frame_number": x})
-    df["label"] = df["label"].apply(lambda x: {"label": x})
-    df["user_name"] = df["user_name"].apply(lambda x: {"user_name": x})
-    df["classification_id"] = df["classification_id"].apply(
-        lambda x: {"classification_id": x}
-    )
-    df["subject_ids"] = df["subject_ids"].apply(lambda x: {"subject_ids": x})
-    df["annotation"] = df["annotations"].apply(lambda x: literal_eval(x)[0]["value"], 1)
-
-    # Extract annotation metadata
-    df["annotation"] = df[
-        [
-            "classification_id",
-            "movie_id",
-            "frame_number",
-            "label",
-            "annotation",
-            "user_name",
-            "subject_ids",
-        ]
-    ].apply(
-        lambda x: [
-            OrderedDict(
-                list(x["classification_id"].items())
-                + list(x["movie_id"].items())
-                + list(x["frame_number"].items())
-                + list(x["label"].items())
-                + list(x["annotation"][i].items())
-                + list(x["user_name"].items())
-                + list(x["subject_ids"].items())
-            )
-            for i in range(len(x["annotation"]))
-        ]
-        if len(x["annotation"]) > 0
-        else [
-            OrderedDict(
-                list(x["classification_id"].items())
-                + list(x["movie_id"].items())
-                + list(x["frame_number"].items())
-                + list(x["label"].items())
-                + list(x["user_name"].items())
-                + list(x["subject_ids"].items())
-            )
-        ],
-        1,
-    )
-
-    # Convert annotation to format which the tracker expects
-    ds = [
-        OrderedDict(
-            {
-                "classification_id": i["classification_id"],
-                "user": i["user_name"],
-                "movie_id": i["movie_id"],
-                "label": i["label"],
-                "start_frame": i["frame_number"],
-                "x": int(i["x"]) if "x" in i else None,
-                "y": int(i["y"]) if "y" in i else None,
-                "w": int(i["width"]) if "width" in i else None,
-                "h": int(i["height"]) if "height" in i else None,
-                "subject_ids": int(i["subject_ids"]) if "subject_ids" in i else None,
-            }
-        )
-        for i in df.annotation.explode()
-        if i is not None and i is not np.nan
-    ]
-
-    return pd.DataFrame(ds)
+    
+    return pd.DataFrame(annot_df)
 
 
 def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
