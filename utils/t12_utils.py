@@ -191,40 +191,40 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
 
     # Process the classifications of clips or frames
     if subj_type == "clip":
-        agg_class_df = process_clips(df, subjects)
+        raw_class_df = process_clips(df, subjects)
 
     if subj_type == "frame":
-        agg_class_df = process_frames(df, subjects)
+        raw_class_df = process_frames(df, subjects)
 
     # Calculate the number of users that classified each subject
-    agg_class_df["n_users"] = agg_class_df.groupby("subject_ids")[
+    raw_class_df["n_users"] = raw_class_df.groupby("subject_ids")[
         "classification_id"
     ].transform("nunique")
 
     # Select classifications with at least n different user classifications
-    agg_class_df = agg_class_df[agg_class_df.n_users >= min_users]
+    raw_class_df = raw_class_df[raw_class_df.n_users >= min_users]
 
     # Calculate the proportion of users that agreed on their annotations
-    agg_class_df["class_n"] = agg_class_df.groupby(["subject_ids", "label"])[
+    raw_class_df["class_n"] = raw_class_df.groupby(["subject_ids", "label"])[
         "classification_id"
     ].transform("count")
-    agg_class_df["class_prop"] = agg_class_df.class_n / agg_class_df.n_users
+    raw_class_df["class_prop"] = raw_class_df.class_n / raw_class_df.n_users
 
     # Select annotations based on agreement threshold
-    agg_class_df = agg_class_df[agg_class_df.class_prop >= agg_users]
+    raw_class_df = raw_class_df[raw_class_df.class_prop >= agg_users]
 
     # Aggregate information unique to clips and frames
     if subj_type == "clip":
         # Extract the median of the second where the animal/object is and number of animals
-        agg_class_df = agg_class_df.groupby(["subject_ids", "label"], as_index=False)
-        agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
+        raw_class_df = raw_class_df.groupby(["subject_ids", "label"], as_index=False)
+        raw_class_df = pd.DataFrame(raw_class_df[["how_many", "first_seen"]].median())
 
     if subj_type == "frame":
         
         ############################ To update from here #######
         
         # Get prepared annotations
-        agg_annot_df = agg_class_df[agg_class_df["x"].notnull()]
+        raw_class_df = raw_class_df[raw_class_df["x"].notnull()]
 
         new_rows = []
         col_list = list(agg_annot_df.columns)
