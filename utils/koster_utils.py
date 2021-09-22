@@ -141,14 +141,28 @@ def process_manual_clips(meta_df):
     return meta_df
 
 
-# Function to select the first subject of those that are duplicated
-def clean_duplicates(subjects, duplicates_csv):
+# Function to get the list of duplicated subjects
+def get_duplicatesdf():
     
+    # Define the path to the csv files with initial info to build the db
+    db_csv_info = "../db_starter/db_csv_info/" 
+
+    # Define the path to the csv file with ids of the duplicated subjects
+    for file in Path(db_csv_info).rglob("*.csv"):
+        if 'duplicat' in file.name:
+            duplicates_csv = file
+            
     # Load the csv with information about duplicated subjects
-    dups_df = pd.read_csv(duplicates_csv)
+    duplicatesdf = pd.read_csv(duplicates_csv)
+    
+    return duplicatesdf
+
+
+# Function to select the first subject of those that are duplicated
+def clean_duplicates(subjects, duplicatesdf):
     
     # Include a column with unique ids for duplicated subjects 
-    subjects = pd.merge(subjects, dups_df, how="left", left_on="subject_id", right_on="dupl_subject_id")
+    subjects = pd.merge(subjects, duplicatesdf, how="left", left_on="subject_id", right_on="dupl_subject_id")
     
     # Replace the id of duplicated subjects for the id of the first subject
     subjects.subject_id = np.where(subjects.single_subject_id.isnull(), subjects.subject_id, subjects.single_subject_id)
@@ -159,6 +173,7 @@ def clean_duplicates(subjects, duplicates_csv):
     return subjects
     
     
+
 def process_koster_subjects(subjects, db_path):
     
     ## Set the date when the metadata of subjects uploaded matches/doesn't match schema.py requirements
@@ -181,22 +196,37 @@ def process_koster_subjects(subjects, db_path):
     # Include movie_ids to the metadata
     manual_subjects_df = get_movies_id(manual_subjects_df, db_path)
    
-    ## Combine and clean KSO subjects
     # Combine all uploaded subjects
     subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
     
-    # Define the path to the csv files with initial info to build the db
-    db_csv_info = "../db_starter/db_csv_info/" 
-
-    # Define the path to the csv file with ids of the duplicated subjects
-    for file in Path(db_csv_info).rglob("*.csv"):
-        if 'duplicat' in file.name:
-            duplicates_csv = file
-
+    # Get the duplicates df
+    duplicatesdf = get_duplicatesdf()
+    
     # Clear duplicated subjects if any
-    subjects = clean_duplicates(subjects, duplicates_csv)
+    subjects = clean_duplicates(subjects, duplicatesdf)
     
     return subjects
+
+# Function to combine classifications received on duplicated subjects
+def combine_duplicates(annot_df):
+
+    # Get the duplicates df
+    duplicatesdf = get_duplicatesdf()
+    
+    # Include a column with unique ids for duplicated subjects
+    annot_df = pd.merge(
+        annot_df, duplicatesdf, how="left", left_on="subject_ids", right_on="dupl_subject_id"
+    )
+
+    # Replace the id of duplicated subjects for the id of the first subject
+    annot_df["subject_ids"] = np.where(
+        annot_df.single_subject_id.isnull(),
+        annot_df.subject_ids,
+        annot_df.single_subject_id,
+    )
+
+    return annot_df
+
 
 def bb_iou(boxA, boxB):
 

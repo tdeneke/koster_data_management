@@ -59,6 +59,10 @@ def retrieve_zoo_info(username: str, password: str, project_n: str, zoo_info: st
 
         # Add df to dictionary
         info_df[info_n] = export_df
+        
+        # If KSO deal with duplicated classifications
+        # If KSO combine classifications from duplicated subjects
+    
 
         print(info_n, "were retrieved successfully")
 
@@ -151,8 +155,14 @@ def populate_subjects(subjects, project_n, db_path):
     return subjects
 
 
-def populate_annotations(subjects, annotations, db_path):
+def populate_annotations(subjects, annotations, db_path, project_n):
 
+    # Check if the Zooniverse project is the KSO
+    if str(project_n) == "9747":
+
+        # Combine annotations of duplicated subjects to unique subject id
+        annotations = combine_duplicates(annotations)
+        
     # Rename column in subjects table to match classifications
     subjects_df = subjects.rename(
         columns={"id": "subject_id", "frame_exp_sp_id": "species_id"}
