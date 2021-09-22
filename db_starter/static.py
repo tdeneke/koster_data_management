@@ -4,18 +4,9 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 import utils.db_utils as db_utils
+import utils.koster_utils as koster_utils
+import utils.movie_utils as movie_utils
 
-def get_length(video_file):
-    
-    final_fn = video_file if os.path.isfile(video_file) else db_utils.unswedify(video_file)
-    if os.path.isfile(final_fn):
-        cap = cv2.VideoCapture(final_fn)
-        fps = cap.get(cv2.CAP_PROP_FPS)     
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        length = frame_count/fps
-    else:
-        length, fps = None, None
-    return fps, length
 
 
 def get_movie_parameters(df, movies_csv):
@@ -41,15 +32,16 @@ def get_movie_parameters(df, movies_csv):
 
                     return
                 
-                # Set the fps and duration of each movide
-                df.loc[df["fps"].isna()|df["duration"].isna(), "fps": "duration"] = pd.DataFrame(df["Fpath"].apply(get_length, 1).tolist(), columns=["fps", "duration"])
+                else:
+                    # Set the fps and duration of each movie
+                    df.loc[df["fps"].isna()|df["duration"].isna(), "fps": "duration"] = pd.DataFrame(df["Fpath"].apply(movie_utils.get_length, 1).tolist(), columns=["fps", "duration"])
             
             if parameter == "survey_start":
-                # Set the start of each movie to 0
+                # Set the start of each movie to 0 if empty
                 df.loc[df["survey_start"].isna(),"survey_start"] = 0
 
             if parameter == "survey_end":
-                # Set the end of each movie to the duration of the movie
+                # Set the end of each movie to the duration of the movie if empty
                 df.loc[df["survey_end"].isna(),"survey_end"] = df["duration"]
 
             # Update the local movies.csv file with the new fps and duration information
