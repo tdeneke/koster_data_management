@@ -84,7 +84,7 @@ def add_sites(sites_csv, db_path):
     )
 
     
-def add_movies(movies_csv, movies_path, db_path):
+def add_movies(movies_csv, movies_path, project_name, db_path):
 
     # Load the csv with movies information
     movies_df = pd.read_csv(movies_csv)
@@ -95,8 +95,14 @@ def add_movies(movies_csv, movies_path, db_path):
     # Check that videos can be mapped
     movies_df['exists'] = movies_df['Fpath'].map(os.path.isfile)
     
-    # Standarise the filename
-    movies_df["filename"] = movies_df["filename"].str.normalize("NFD")
+    # Check if the project is the KSO
+    if project_name == "Koster Seafloor Obs":
+
+        # Standarise the filename
+        movies_df["filename"] = movies_df["filename"].str.normalize("NFD")
+        
+        # Unswedify the filename
+        movies_df["filename"] = movies_df["filename"].apply(lambda x: koster_utils.unswedify(x))
     
     # Ensure all videos have fps, duration, starting and ending time of the survey
     movies_df = get_movie_parameters(movies_df, movies_csv)
@@ -162,8 +168,9 @@ def static_setup(sites_csv: str,
                  movies_csv: str,
                  species_csv: str,
                  movies_path: str,
+                 project_name: str,
                  db_path: str):   
     
     add_sites(sites_csv, db_path)
-    add_movies(movies_csv, movies_path, db_path)
+    add_movies(movies_csv, movies_path, project_name, db_path)
     add_species(species_csv, db_path)

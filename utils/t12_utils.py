@@ -22,7 +22,7 @@ def choose_project():
     projects_df = pd.read_csv(projects_csv)
     
     # Display the project options
-    choose_project = Dropdown(
+    choose_project = widgets.Dropdown(
         options=projects_df.Project_name.unique().tolist(),
         value=projects_df.Project_name.unique().tolist()[0],
         description="Project:",

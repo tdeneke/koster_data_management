@@ -26,6 +26,14 @@ def main():
         default=r"koster_lab.db",
         required=False,
     )
+    parser.add_argument(
+        "-pj",
+        "--project_name",
+        type=str,
+        help="the name of your project",
+        default=r"Project example",
+        required=False,
+    )
 
     args = parser.parse_args()
     
@@ -58,7 +66,7 @@ def main():
     init_db(args.db_path)
     
     # Populate the db with initial info from csv files
-    static_setup(sites_csv, movies_csv, species_csv, args.movies_path, args.db_path)
+    static_setup(sites_csv, movies_csv, species_csv, args.movies_path, args.project_name, args.db_path)
     
     
 if __name__ == "__main__":
