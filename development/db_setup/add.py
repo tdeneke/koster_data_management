@@ -4,9 +4,10 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 import utils.db_utils as db_utils
+import utils.koster_utils as koster_utils
 
 def get_length(video_file):
-    final_fn = video_file if os.path.isfile(video_file) else db_utils.unswedify(video_file)
+    final_fn = video_file if os.path.isfile(video_file) else koster_utils.unswedify(video_file)
     if os.path.isfile(final_fn):
         cap = cv2.VideoCapture(final_fn)
         fps = cap.get(cv2.CAP_PROP_FPS)     
