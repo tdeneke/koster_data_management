@@ -124,17 +124,6 @@ def get_id(row, field_name, table_name, conn, conditions={"a": "=b"}):
         id_value = None
     return id_value
 
-
-def unswedify(string):
-    """Convert ä and ö to utf-8"""
-    return (
-        string.encode("utf-8")
-        .replace(b"\xc3\xa4", b"a\xcc\x88")
-        .replace(b"\xc3\xb6", b"o\xcc\x88")
-        .decode("utf-8")
-    )
-
-
 def download_csv_from_google_drive(file_url):
 
     # Download the csv files stored in Google Drive with initial information about
@@ -172,26 +161,6 @@ def find_duplicated_clips(conn):
 
     return times_uploaded_df["times"].value_counts()
 
-
-# Function to combine classifications received on duplicated subjects
-def combine_duplicates(annot_df, duplicates_file_id):
-
-    # Download the csv with information about duplicated subjects
-    dups_df = download_csv_from_google_drive(duplicates_file_id)
-
-    # Include a column with unique ids for duplicated subjects
-    annot_df = pd.merge(
-        annot_df, dups_df, how="left", left_on="subject_ids", right_on="dupl_subject_id"
-    )
-
-    # Replace the id of duplicated subjects for the id of the first subject
-    annot_df["subject_ids"] = np.where(
-        annot_df.single_subject_id.isnull(),
-        annot_df.subject_ids,
-        annot_df.single_subject_id,
-    )
-
-    return annot_df
 
 def download_init_csv(gdrive_id, db_csv_info):
     
