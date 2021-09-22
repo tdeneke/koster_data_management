@@ -9,6 +9,16 @@ from datetime import datetime
 import utils.db_utils as db_utils
 
 
+# Function to prevent issues with Swedish characters
+def unswedify(string):
+    """Convert ä and ö to utf-8"""
+    return (
+        string.encode("utf-8")
+        .replace(b"\xc3\xa4", b"a\xcc\x88")
+        .replace(b"\xc3\xb6", b"o\xcc\x88")
+        .decode("utf-8")
+    )
+
 # Function to extract metadata from subjects
 def extract_metadata(subj_df):
 
