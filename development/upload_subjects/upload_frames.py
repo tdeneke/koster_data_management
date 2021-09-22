@@ -14,17 +14,7 @@ from panoptes_client import (
     Project,
     Panoptes,
 )
-
-
-def unswedify(string):
-    """Convert ä and ö to utf-8"""
-    return (
-        string.encode("utf-8")
-        .replace(b"\xc3\xa4", b"a\xcc\x88")
-        .replace(b"\xc3\xb6", b"o\xcc\x88")
-        .decode("utf-8")
-    )
-
+import utils.koster_utils as koster_utils
 
 # Function to identify up to n number of frames per classified clip
 # that contains species of interest after the first time seen
@@ -65,7 +55,7 @@ def get_species_frames(species_id, conn, n_frames):
 
     # Ensure swedish characters don't cause issues
     f_paths["fpath"] = f_paths["fpath"].apply(
-        lambda x: str(x) if os.path.isfile(str(x)) else unswedify(str(x))
+        lambda x: str(x) if os.path.isfile(str(x)) else koster_utlis.unswedify(str(x))
     )
     # Include movies' filepath and fps to the df
     frames_df = frames_df.merge(f_paths, left_on="movie_id", right_on="id")
