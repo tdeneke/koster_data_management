@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 import utils.db_utils as db_utils
 import utils.koster_utils as koster_utils
+import utils.server_utils as server_utils
 
 def get_length(video_file):
     final_fn = video_file if os.path.isfile(video_file) else koster_utils.unswedify(video_file)
@@ -20,7 +21,7 @@ def get_length(video_file):
 def add_new_movies(movies_file_id, db_path, movies_path):
 
     # Download the csv with movies information from the google drive
-    movies_df = db_utils.download_csv_from_google_drive(movies_file_id)
+    movies_df = server_utils.download_csv_from_google_drive(movies_file_id)
 
     # Include server's path of the movie files
     movies_df["Fpath"] = movies_path + "/" + movies_df["FilenameCurrent"]

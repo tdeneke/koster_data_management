@@ -1,9 +1,7 @@
-import os
-import sqlite3
+import os, io
 import requests
 import pandas as pd
 import numpy as np
-import io
 import gdown
 import zipfile
 

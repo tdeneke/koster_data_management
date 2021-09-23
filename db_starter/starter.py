@@ -2,7 +2,7 @@ import os
 import argparse
 
 from pathlib import Path
-from utils.db_utils import download_init_csv
+from utils.server_utils import download_init_csv
 from init import init_db
 from static import static_setup
 
