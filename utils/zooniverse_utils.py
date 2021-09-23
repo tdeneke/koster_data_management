@@ -34,8 +34,16 @@ def auth_session(username, password, project_n):
 
 
 # Function to retrieve information from Zooniverse
-def retrieve_zoo_info(username: str, password: str, project_n: str, zoo_info: str):
+def retrieve_zoo_info(username: str, password: str, project_name: str, zoo_info: str):
 
+    # Specify location of the latest list of projects
+    projects_csv = "../db_starter/projects_list.csv" 
+    
+    # Read the latest list of projects
+    projects_df = pd.read_csv(projects_csv)
+    
+    project_n = projects_df[projects_df["Project_name"]==project_name]["Zooniverse_number"].unique()[0]
+    
     print("Connecting to the Zooniverse project")
 
     # Connect to the Zooniverse project
@@ -66,7 +74,7 @@ def retrieve_zoo_info(username: str, password: str, project_n: str, zoo_info: st
 
         print(info_n, "were retrieved successfully")
 
-    return info_df
+    return project_n, info_df
 
 
 # Function to extract metadata from subjects
@@ -89,10 +97,10 @@ def extract_metadata(subj_df):
     return subj_df, meta_df
 
 
-def populate_subjects(subjects, project_n, db_path):
+def populate_subjects(subjects, project_name, db_path):
 
     # Check if the Zooniverse project is the KSO
-    if str(project_n) == "9747":
+    if project_name == "Koster Seafloor Obs":
 
         subjects = process_koster_subjects(subjects, db_path)
 
@@ -105,7 +113,7 @@ def populate_subjects(subjects, project_n, db_path):
         subjects = pd.concat([subjects_df, subjects_meta], axis=1)
 
         # Check if the Zooniverse project is the Spyfish
-        if str(project_n) == "14054":
+        if project_name == "Spyfish Aotearoa":
 
             subjects = process_spyfish_subjects(subjects, db_path)
 
@@ -155,10 +163,10 @@ def populate_subjects(subjects, project_n, db_path):
     return subjects
 
 
-def populate_annotations(subjects, annotations, db_path, project_n):
+def populate_annotations(subjects, annotations, project_name, db_path):
 
     # Check if the Zooniverse project is the KSO
-    if str(project_n) == "9747":
+    if project_name == "Koster Seafloor Obs":
 
         # Combine annotations of duplicated subjects to unique subject id
         annotations = combine_duplicates(annotations)
