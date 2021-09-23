@@ -55,7 +55,7 @@ def choose_agg_parameters(subject_type: str):
     min_users = widgets.IntSlider(
         value=3,
         min=1,
-        max=20,
+        max=15,
         step=1,
         description="Min numbers of users:",
         disabled=False,
@@ -179,7 +179,7 @@ def choose_w_version(workflows_df, workflow_id):
 def get_classifications(
     workflow_id: int, workflow_version: float, subj_type, class_df, subjects_df
 ):
-
+    
     # Filter classifications of interest
     class_df = class_df[
         (class_df.workflow_id == workflow_id)
@@ -242,20 +242,20 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
     raw_class_df["class_prop"] = raw_class_df.class_n / raw_class_df.n_users
 
     # Select annotations based on agreement threshold
-    raw_class_df = raw_class_df[raw_class_df.class_prop >= agg_users]
+    agg_class_df = raw_class_df[raw_class_df.class_prop >= agg_users]
 
     # Aggregate information unique to clips and frames
     if subj_type == "clip":
         # Extract the median of the second where the animal/object is and number of animals
-        raw_class_df = raw_class_df.groupby(["subject_ids", "label"], as_index=False)
-        raw_class_df = pd.DataFrame(raw_class_df[["how_many", "first_seen"]].median())
+        agg_class_df = agg_class_df.groupby(["subject_ids", "label"], as_index=False)
+        agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
 
     if subj_type == "frame":
         
         ############################ To update from here #######
         
         # Get prepared annotations
-        raw_class_df = raw_class_df[raw_class_df["x"].notnull()]
+        agg_class_df = agg_class_df[agg_class_df["x"].notnull()]
 
         new_rows = []
         col_list = list(agg_annot_df.columns)
@@ -319,8 +319,12 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
             ],
         )
 
-    print("Classifications aggregated")
-    return agg_class_df
+    
+    # Select subjects of the aggregated classifications 
+    agg_subjects_df = subjects[subjects.id.isin(agg_class_df.subject_ids.unique())]
+    
+    print(agg_class_df.shape[0], "classifications aggregated out of", df.subject_ids.nunique(), "unique subjects available")
+    return agg_subjects_df, agg_class_df
 
 
 def process_clips(df: pd.DataFrame, subjects: pd.DataFrame):

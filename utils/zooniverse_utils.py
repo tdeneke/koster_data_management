@@ -9,7 +9,7 @@ from panoptes_client import (
     Panoptes,
 )
 
-from utils.koster_utils import process_koster_subjects
+from utils.koster_utils import process_koster_subjects, clean_duplicated_subjects, combine_annot_from_duplicates
 from utils.spyfish_utils import process_spyfish_subjects
 import utils.db_utils as db_utils
 
@@ -61,6 +61,17 @@ def retrieve_zoo_info(username: str, password: str, project_name: str, zoo_info:
         try:
             # Save the info as pandas data frame
             export_df = pd.read_csv(io.StringIO(export.content.decode("utf-8")))
+            
+            # If KSO deal with duplicated subjects
+            if project_name == "Koster Seafloor Obs":
+
+                # Clear duplicated subjects
+                if info_n == "subjects":
+                    export_df = clean_duplicated_subjects(export_df)
+
+                # Combine classifications from duplicated subjects to unique subject id
+                if info_n == "classifications":
+                    export_df = combine_annot_from_duplicates(export_df)
 
         except:
             raise ValueError("Request time out, please try again in 1 minute.")
@@ -68,10 +79,6 @@ def retrieve_zoo_info(username: str, password: str, project_name: str, zoo_info:
         # Add df to dictionary
         info_df[info_n] = export_df
         
-        # If KSO deal with duplicated classifications
-        # If KSO combine classifications from duplicated subjects
-    
-
         print(info_n, "were retrieved successfully")
 
     return project_n, info_df
@@ -163,39 +170,41 @@ def populate_subjects(subjects, project_name, db_path):
     return subjects
 
 
-def populate_annotations(subjects, annotations, project_name, db_path):
-
-    # Check if the Zooniverse project is the KSO
-    if project_name == "Koster Seafloor Obs":
-
-        # Combine annotations of duplicated subjects to unique subject id
-        annotations = combine_duplicates(annotations)
-        
-    # Rename column in subjects table to match classifications
-    subjects_df = subjects.rename(
-        columns={"id": "subject_id", "frame_exp_sp_id": "species_id"}
-    )
-
-    # Ensure that subject_ids are not duplicated by workflow
-    subjects_df = subjects_df.drop_duplicates(subset="subject_id")
+# Relevant for ML and upload frames tutorials
+def populate_agg_annotations(subjects, annotations, subj_type, db_path):
 
     # Combine annotation and subject information
     annotations_df = pd.merge(
         annotations,
-        subjects_df,
+        subjects,
         how="left",
         left_on="subject_ids",
         right_on="subject_id",
         validate="many_to_one",
-    )[["species_id", "x", "y", "w", "h", "subject_id"]]
-
-    # Test table validity
-    db_utils.test_table(annotations_df, "agg_annotations_frame", keys=["movie_id"])
-
-    # Add values to agg_annotations_frame
-    db_utils.add_to_table(
-        db_path,
-        "agg_annotations_frame",
-        [(None,) + tuple(i) for i in annotations_df.values],
-        7,
     )
+    
+    # Update agg_annotations_clip table
+    if subj_type == "clip":
+        print("WIP")
+        
+    # Update agg_annotations_frame table
+    if subj_type == "frame":
+        
+        # Select relevant columns
+        annotations_df = annotations_df[["species_id", "x", "y", "w", "h", "subject_id"]]
+        
+        # Test table validity
+        db_utils.test_table(annotations_df, "agg_annotations_frame", keys=["movie_id"])
+
+        # Add values to agg_annotations_frame
+        db_utils.add_to_table(
+            db_path,
+            "agg_annotations_frame",
+            [(None,) + tuple(i) for i in annotations_df.values],
+            7,
+        )
+        
+    
+   
+
+    

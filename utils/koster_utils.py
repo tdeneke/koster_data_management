@@ -156,10 +156,13 @@ def get_duplicatesdf():
     duplicatesdf = pd.read_csv(duplicates_csv)
     
     return duplicatesdf
-
+    
 
 # Function to select the first subject of those that are duplicated
-def clean_duplicates(subjects, duplicatesdf):
+def clean_duplicated_subjects(subjects):
+    
+    # Get the duplicates df
+    duplicatesdf = get_duplicatesdf()
     
     # Include a column with unique ids for duplicated subjects 
     subjects = pd.merge(subjects, duplicatesdf, how="left", left_on="subject_id", right_on="dupl_subject_id")
@@ -198,17 +201,11 @@ def process_koster_subjects(subjects, db_path):
    
     # Combine all uploaded subjects
     subjects = pd.merge(manual_subjects_df, auto_subjects_df, how="outer")
-    
-    # Get the duplicates df
-    duplicatesdf = get_duplicatesdf()
-    
-    # Clear duplicated subjects if any
-    subjects = clean_duplicates(subjects, duplicatesdf)
-    
+        
     return subjects
 
 # Function to combine classifications received on duplicated subjects
-def combine_duplicates(annot_df):
+def combine_annot_from_duplicates(annot_df):
 
     # Get the duplicates df
     duplicatesdf = get_duplicatesdf()
