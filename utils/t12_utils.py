@@ -130,17 +130,39 @@ def choose_workflows(workflows_df):
 
     layout = widgets.Layout(width="auto", height="40px")  # set width and height
 
-    # TODO display the workflow ids and versions
-    w1 = widgets.Dropdown(
+    # Display the names of the workflows
+    workflow_name = widgets.Dropdown(
         options=workflows_df.display_name.unique().tolist(),
         value=workflows_df.display_name.unique().tolist()[0],
         description="Workflow name:",
         disabled=False,
     )
 
-    w2 = widgets.Dropdown(
-        options=list(map(float, workflows_df.version.unique().tolist())),
-        value=float(workflows_df.version.unique().tolist()[0]),
+    # Display the type of subjects
+    subj_type = widgets.Dropdown(
+        options=["frame", "clip"],
+        value="clip",
+        description="Subject type:",
+        disabled=False,
+    )
+
+    display(workflow_name)
+    display(subj_type)
+
+    return workflow_name, subj_type
+
+
+def choose_w_version(workflows_df, workflow_id):
+
+    layout = widgets.Layout(width="auto", height="40px")  # set width and height
+
+    # Estimate the versions of the workflow available
+    versions_available = workflows_df[workflows_df.workflow_id==workflow_id].version.unique().tolist()
+
+    # Display the versions of the workflow available
+    w_version = widgets.Dropdown(
+        options=list(map(float, versions_available)),
+        value=float(versions_available[0]),
         description="Minimum workflow version:",
         disabled=False,
         display="flex",
@@ -149,21 +171,9 @@ def choose_workflows(workflows_df):
         style={"description_width": "initial"},
     )
 
-    w3 = widgets.Dropdown(
-        options=["frame", "clip"],
-        value="clip",
-        description="Subject type:",
-        disabled=False,
-    )
+    display(w_version)
 
-    # w1.observe(on_change)
-    display(w1)
-    # w2.observe(on_change)
-    display(w2)
-    # w3.observe(on_change)
-    display(w3)
-
-    return w1, w2, w3
+    return w_version
 
 
 def get_classifications(
