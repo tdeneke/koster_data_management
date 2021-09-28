@@ -4,7 +4,8 @@ import json, io
 from ast import literal_eval
 from utils.zooniverse_utils import auth_session
 import utils.db_utils as db_utils
-from utils.koster_utils import filter_bboxes
+from utils.koster_utils import filter_bboxes, process_clips_koster
+from utils.spyfish_utils import process_clips_spyfish
 from utils import db_utils
 from collections import OrderedDict, Counter
 from IPython.display import HTML, display, update_display, clear_output
@@ -177,7 +178,7 @@ def choose_w_version(workflows_df, workflow_id):
 
 
 def get_classifications(
-    workflow_id: int, workflow_version: float, subj_type, class_df, subjects_df
+    workflow_id: int, workflow_version: float, subj_type, class_df, db_path
 ):
     
     # Filter classifications of interest
@@ -185,34 +186,29 @@ def get_classifications(
         (class_df.workflow_id == workflow_id)
         & (class_df.workflow_version >= workflow_version)
     ].reset_index(drop=True)
-
-    # Add information about the subject type
-    try:
-        class_df["subject_type"] = class_df["subject_data"].apply(
-            lambda x: [v["subject_type"] for k, v in json.loads(x).items()][0]
-        )
-
-        # Ensure only classifications of one type of subject get analysed (frame or video)
-        class_df = class_df[class_df.subject_type == subj_type]
-    except:
-        pass
-
-    # Add information on the location of the subject
-    total_df = pd.merge(
+    
+    # Add information about the subject
+    # Create connection to db
+    conn = db_utils.create_connection(db_path)
+    
+    # Query id and subject type from the subjects table
+    subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location FROM subjects", conn)
+    
+    # Add subject information based on subject_ids
+    class_df = pd.merge(
         class_df,
-        subjects_df[["subject_id", "workflow_id", "locations"]],
-        left_on=["subject_ids", "workflow_id"],
-        right_on=["subject_id", "workflow_id"],
+        subjects_df,
+        how="left",
+        left_on="subject_ids",
+        right_on="id",
     )
-
-    total_df["locations"] = total_df["locations"].apply(lambda x: literal_eval(x)["0"])
 
     print("Zooniverse classifications have been retrieved")
 
-    return total_df, class_df
+    return class_df
 
 
-def aggregrate_classifications(df, subj_type, subjects, agg_params):
+def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
 
     print("Aggregrating the classifications")
     if subj_type == "frame":
@@ -222,10 +218,10 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
 
     # Process the classifications of clips or frames
     if subj_type == "clip":
-        raw_class_df = process_clips(df, subjects)
+        raw_class_df = process_clips(df, project_name)
 
     if subj_type == "frame":
-        raw_class_df = process_frames(df, subjects)
+        raw_class_df = process_frames(df, project_name)
 
     # Calculate the number of users that classified each subject
     raw_class_df["n_users"] = raw_class_df.groupby("subject_ids")[
@@ -247,7 +243,7 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
     # Aggregate information unique to clips and frames
     if subj_type == "clip":
         # Extract the median of the second where the animal/object is and number of animals
-        agg_class_df = agg_class_df.groupby(["subject_ids", "label"], as_index=False)
+        agg_class_df = agg_class_df.groupby(["subject_ids", "https_location", "subject_type", "label"], as_index=False)
         agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
 
     if subj_type == "frame":
@@ -320,14 +316,12 @@ def aggregrate_classifications(df, subj_type, subjects, agg_params):
         )
 
     
-    # Select subjects of the aggregated classifications 
-    agg_subjects_df = subjects[subjects.id.isin(agg_class_df.subject_ids.unique())]
-    
     print(agg_class_df.shape[0], "classifications aggregated out of", df.subject_ids.nunique(), "unique subjects available")
-    return agg_subjects_df, agg_class_df
+    
+    return agg_class_df
 
 
-def process_clips(df: pd.DataFrame, subjects: pd.DataFrame):
+def process_clips(df: pd.DataFrame, project_name):
 
     # Create an empty list
     rows_list = []
@@ -338,44 +332,18 @@ def process_clips(df: pd.DataFrame, subjects: pd.DataFrame):
         annotations = json.loads(row["annotations"])
 
         # Select the information from the species identification task
-        for ann_i in annotations:
-            if ann_i["task"] == "T4":
-
-                # Select each species annotated and flatten the relevant answers
-                for value_i in ann_i["value"]:
-                    choice_i = {}
-                    # If choice = 'nothing here', set follow-up answers to blank
-                    if value_i["choice"] == "NOTHINGHERE":
-                        f_time = ""
-                        inds = ""
-                    # If choice = species, flatten follow-up answers
-                    else:
-                        answers = value_i["answers"]
-                        for k in answers.keys():
-                            if "FIRSTTIME" in k:
-                                f_time = answers[k].replace("S", "")
-                            if "INDIVIDUAL" in k:
-                                inds = answers[k]
-                            elif "FIRSTTIME" not in k and "INDIVIDUAL" not in k:
-                                f_time, inds = None, None
-
-                    # Save the species of choice, class and subject id
-                    choice_i.update(
-                        {
-                            "classification_id": row["classification_id"],
-                            "label": value_i["choice"],
-                            "first_seen": f_time,
-                            "how_many": inds,
-                        }
-                    )
-
-                    rows_list.append(choice_i)
+        if project_name == "Koster Seafloor Obs":
+            rows_list = process_clips_koster(annotations, row["classification_id"], rows_list)
+            
+        # Check if the Zooniverse project is the Spyfish
+        if project_name == "Spyfish Aotearoa":
+            rows_list = process_clips_spyfish(annotations, row["classification_id"], rows_list)
 
     # Create a data frame with annotations as rows
     annot_df = pd.DataFrame(
         rows_list, columns=["classification_id", "label", "first_seen", "how_many"]
     )
-
+    
     # Specify the type of columns of the df
     annot_df["how_many"] = pd.to_numeric(annot_df["how_many"])
     annot_df["first_seen"] = pd.to_numeric(annot_df["first_seen"])
@@ -388,15 +356,6 @@ def process_clips(df: pd.DataFrame, subjects: pd.DataFrame):
         on="classification_id",
     )
     
-    # Add cleaned subject information based on subject_ids
-    annot_df = pd.merge(
-        annot_df,
-        subjects,
-        how="left",
-        left_on="subject_ids",
-        right_on="id",
-    ) 
-
     #Select only relevant columns
     annot_df = annot_df[
         [
@@ -404,16 +363,16 @@ def process_clips(df: pd.DataFrame, subjects: pd.DataFrame):
             "label",
             "how_many", 
             "first_seen",
-            "user_name",
+            "https_location",
+            "subject_type",
             "subject_ids",
-            "movie_id",
         ]
     ]
     
     return pd.DataFrame(annot_df)
 
 
-def process_frames(df: pd.DataFrame, subjects: pd.DataFrame):
+def process_frames(df: pd.DataFrame, project_name):
 
     # Create an empty list
     rows_list = []
@@ -452,16 +411,7 @@ def process_frames(df: pd.DataFrame, subjects: pd.DataFrame):
         df,
         how="left",
         on="classification_id",
-    ) 
-
-    # Add cleaned subject information based on subject_ids
-    annot_df = pd.merge(
-        annot_df,
-        subjects,
-        how="left",
-        left_on="subject_ids",
-        right_on="id",
-    ) 
+    )
     
     #Select only relevant columns
     annot_df = annot_df[
@@ -469,9 +419,9 @@ def process_frames(df: pd.DataFrame, subjects: pd.DataFrame):
             "classification_id",
             "x", "y", "w", "h", 
             "label",
-            "user_name",
+            "https_location",
+            "subject_type",
             "subject_ids",
-            "movie_id",
             "frame_number",
             "frame_exp_sp_id",
         ]
@@ -480,13 +430,14 @@ def process_frames(df: pd.DataFrame, subjects: pd.DataFrame):
     return pd.DataFrame(annot_df)
 
 
-def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
+def view_subject(subject_id: int,  class_df: pd.DataFrame):
     try:
 
-        subject_location = df[df.subject_ids == subject_id]["locations"].iloc[0]
+        subject_location = class_df[class_df.subject_ids == subject_id]["https_location"].unique()[0]
+        print(subject_location)
     except:
         raise Exception("The reference data does not contain media for this subject.")
-    if len(annot_df[annot_df.subject_ids == subject_id]) == 0:
+    if not subject_location:
         raise Exception("Subject not found in provided annotations")
 
     # Get the HTML code to show the selected subject
@@ -499,7 +450,7 @@ def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
           <source src={subject_location} type="video/mp4">
         </video>
         </div>
-        <div>{annot_df[annot_df.subject_ids == subject_id]['label'].value_counts().sort_values(ascending=False).to_frame().to_html()}</div>
+        <div>{class_df[class_df.subject_ids == subject_id][['label','first_seen','how_many']].value_counts().sort_values(ascending=False).to_frame().to_html()}</div>
         </div>
         </html>"""
     else:
@@ -510,50 +461,32 @@ def view_subject(subject_id: int, df: pd.DataFrame, annot_df: pd.DataFrame):
           <img src={subject_location} type="image/jpeg" width=500>
         </img>
         </div>
-        <div>{annot_df[annot_df.subject_ids == subject_id]['label'].value_counts().sort_values(ascending=False).to_frame().to_html()}</div>
+        <div>{class_df[class_df.subject_ids == subject_id]['label'].value_counts().sort_values(ascending=False).to_frame().to_html()}</div>
         </div>
         </html>"""
     return HTML(html_code)
 
 
-def launch_viewer(df: pd.DataFrame, total_df: pd.DataFrame):
+def launch_viewer(class_df: pd.DataFrame):
 
-    v = widgets.ToggleButtons(
-        options=["Frames", "Clips"],
-        description="Subject type:",
-        disabled=False,
-        button_style="success",
-    )
-
-    subject_df = df
-
-    def on_tchange(change):
-        global subject_df
-        with main_out:
-            if change["type"] == "change" and change["name"] == "value":
-                clear_output()
-                subject_df = df
-                w = widgets.Combobox(
-                    options=list(subject_df.subject_ids.apply(str).unique()),
+    # Select the subject
+    subject_widget = widgets.Combobox(
+                    options= tuple(class_df.subject_ids.apply(int).apply(str)),
                     description="Subject id:",
                     ensure_option=True,
                     disabled=False,
                 )
-                w.observe(on_change)
-                display(w)
-                global out
-                out = widgets.Output()
-                display(out)
-
-    def on_change(change):
-        global subject_df
-        with out:
-            if change["type"] == "change" and change["name"] == "value":
-                a = view_subject(int(change["new"]), subject_df, total_df)
-                clear_output()
-                display(a)
-
-    v.observe(on_tchange)
-    display(v)
+    
     main_out = widgets.Output()
-    display(main_out)
+    display(subject_widget, main_out)
+    
+    # Display the subject and classifications on change
+    def on_change(change):
+        with main_out:
+            a = view_subject(int(change["new"]), class_df)
+            clear_output()
+            display(a)
+                
+                
+    subject_widget.observe(on_change, names='value')
+            
