@@ -40,6 +40,7 @@ classifications_count integer NULL,
 retired_at datetime NULL,
 retirement_reason text NULL,
 created_at datetime,
+https_location text NULL,
 movie_id integer NULL,
 FOREIGN KEY (movie_id) REFERENCES movies (id)
 );
