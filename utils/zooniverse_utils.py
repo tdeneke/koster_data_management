@@ -9,6 +9,7 @@ from panoptes_client import (
     Panoptes,
 )
 
+from ast import literal_eval
 from utils.koster_utils import process_koster_subjects, clean_duplicated_subjects, combine_annot_from_duplicates
 from utils.spyfish_utils import process_spyfish_subjects
 import utils.db_utils as db_utils
@@ -127,6 +128,9 @@ def populate_subjects(subjects, project_name, db_path):
     # Set subject_id information as id
     subjects = subjects.rename(columns={"subject_id": "id"})
 
+    # Extract the html location of the subjects
+    subjects["https_location"] = subjects["locations"].apply(lambda x: literal_eval(x)["0"])
+    
     # Set the columns in the right order
     subjects = subjects[
         [
@@ -143,6 +147,7 @@ def populate_subjects(subjects, project_name, db_path):
             "retired_at",
             "retirement_reason",
             "created_at",
+            "https_location",
             "movie_id",
         ]
     ]
@@ -154,7 +159,7 @@ def populate_subjects(subjects, project_name, db_path):
     db_utils.test_table(subjects, "subjects", keys=["movie_id"])
 
     # Add values to subjects
-    db_utils.add_to_table(db_path, "subjects", [tuple(i) for i in subjects.values], 14)
+    db_utils.add_to_table(db_path, "subjects", [tuple(i) for i in subjects.values], 15)
     
     ##### Print how many subjects are in the db
     # Create connection to db
@@ -166,9 +171,6 @@ def populate_subjects(subjects, project_name, db_path):
     clip_subjs = subjects_df[subjects_df["subject_type"]=="clip"].shape[0]
     
     print("The database has a total of", frame_subjs, "frame subjects and", clip_subjs, "clip subjects have been updated")
-
-    return subjects
-
 
 # Relevant for ML and upload frames tutorials
 def populate_agg_annotations(subjects, annotations, subj_type, db_path):

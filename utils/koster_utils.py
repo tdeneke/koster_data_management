@@ -225,6 +225,46 @@ def combine_annot_from_duplicates(annot_df):
     return annot_df
 
 
+def process_clips_koster(annotations, row_class_id, rows_list):
+    
+    nothing_values = ["NOANIMALSPRESENT","ICANTRECOGNISEANYTHING","ISEENOTHING","NOTHINGHERE"]
+    
+    for ann_i in annotations:
+        if ann_i["task"] == "T4":
+            # Select each species annotated and flatten the relevant answers
+            for value_i in ann_i["value"]:
+                choice_i = {}
+                # If choice = 'nothing here', set follow-up answers to blank
+                if value_i["choice"] in nothing_values:
+                    f_time = ""
+                    inds = ""
+                # If choice = species, flatten follow-up answers
+                else:
+                    answers = value_i["answers"]
+                    for k in answers.keys():
+                        if "FIRSTTIME" in k:
+                            f_time = answers[k].replace("S", "")
+                        if "INDIVIDUAL" in k:
+                            inds = answers[k]
+                        elif "FIRSTTIME" not in k and "INDIVIDUAL" not in k:
+                            f_time, inds = None, None
+
+                # Save the species of choice, class and subject id
+                choice_i.update(
+                    {
+                        "classification_id": row_class_id,
+                        "label": value_i["choice"],
+                        "first_seen": f_time,
+                        "how_many": inds,
+                    }
+                )
+
+                rows_list.append(choice_i)
+               
+            
+            
+    return rows_list
+
 def bb_iou(boxA, boxB):
 
     # Compute edges
