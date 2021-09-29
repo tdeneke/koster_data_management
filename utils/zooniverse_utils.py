@@ -173,17 +173,24 @@ def populate_subjects(subjects, project_name, db_path):
     print("The database has a total of", frame_subjs, "frame subjects and", clip_subjs, "clip subjects have been updated")
 
 # Relevant for ML and upload frames tutorials
-def populate_agg_annotations(subjects, annotations, subj_type, db_path):
+def populate_agg_annotations(annotations, subj_type, db_path):
+
+    conn = db_utils.create_connection(db_path)
+    
+    # Query id and subject type from the subjects table
+    subjects_df = pd.read_sql_query("SELECT id, frame_exp_sp_id FROM subjects", conn)
 
     # Combine annotation and subject information
     annotations_df = pd.merge(
         annotations,
-        subjects,
+        subjects_df,
         how="left",
-        left_on="subject_ids",
-        right_on="subject_id",
+        left_on="subject_id",
+        right_on="id",
         validate="many_to_one",
     )
+
+
     
     # Update agg_annotations_clip table
     if subj_type == "clip":
@@ -193,10 +200,10 @@ def populate_agg_annotations(subjects, annotations, subj_type, db_path):
     if subj_type == "frame":
         
         # Select relevant columns
-        annotations_df = annotations_df[["species_id", "x", "y", "w", "h", "subject_id"]]
+        annotations_df = annotations_df[["frame_exp_sp_id", "x", "y", "w", "h", "subject_id"]]
         
         # Test table validity
-        db_utils.test_table(annotations_df, "agg_annotations_frame", keys=["movie_id"])
+        db_utils.test_table(annotations_df, "agg_annotations_frame", keys=["frame_exp_sp_id"])
 
         # Add values to agg_annotations_frame
         db_utils.add_to_table(

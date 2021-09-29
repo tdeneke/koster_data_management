@@ -31,7 +31,6 @@ def choose_project():
     )
     
     display(choose_project)
-    
     return choose_project
 
     
@@ -173,7 +172,6 @@ def choose_w_version(workflows_df, workflow_id):
     )
 
     display(w_version)
-
     return w_version
 
 
@@ -192,7 +190,7 @@ def get_classifications(
     conn = db_utils.create_connection(db_path)
     
     # Query id and subject type from the subjects table
-    subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location FROM subjects", conn)
+    subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location, frame_number, movie_id FROM subjects", conn)
     
     # Add subject information based on subject_ids
     class_df = pd.merge(
@@ -251,8 +249,7 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
         ############################ To update from here #######
         
         # Get prepared annotations
-        agg_class_df = agg_class_df[agg_class_df["x"].notnull()]
-
+        agg_annot_df = agg_class_df[agg_class_df["x"].notnull()]
         new_rows = []
         col_list = list(agg_annot_df.columns)
 
@@ -271,7 +268,7 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
             total_users = agg_class_df[
                 (agg_class_df.movie_id == movie_id)
                 & (agg_class_df.label == label)
-                & (agg_class_df.start_frame == start_frame)
+                & (agg_class_df.frame_number == start_frame)
             ]["user_name"].nunique()
 
             # Filter bboxes using IOU metric (essentially a consensus metric)
@@ -404,6 +401,7 @@ def process_frames(df: pd.DataFrame, project_name):
     flat_annot_df = pd.DataFrame(
         rows_list, columns=["classification_id", "x", "y", "w", "h", "label"]
     )
+
     
     # Add other classification information to the flatten classifications
     annot_df = pd.merge(
@@ -412,6 +410,7 @@ def process_frames(df: pd.DataFrame, project_name):
         how="left",
         on="classification_id",
     )
+
     
     #Select only relevant columns
     annot_df = annot_df[
@@ -423,7 +422,8 @@ def process_frames(df: pd.DataFrame, project_name):
             "subject_type",
             "subject_ids",
             "frame_number",
-            "frame_exp_sp_id",
+            "user_name",
+            "movie_id"
         ]
     ]
     
@@ -434,7 +434,6 @@ def view_subject(subject_id: int,  class_df: pd.DataFrame):
     try:
 
         subject_location = class_df[class_df.subject_ids == subject_id]["https_location"].unique()[0]
-        print(subject_location)
     except:
         raise Exception("The reference data does not contain media for this subject.")
     if not subject_location:
