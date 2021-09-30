@@ -1,5 +1,6 @@
 ##ZOOniverse utils
 import io
+import getpass
 import pandas as pd
 import json
 from panoptes_client import (
@@ -13,6 +14,12 @@ from ast import literal_eval
 from utils.koster_utils import process_koster_subjects, clean_duplicated_subjects, combine_annot_from_duplicates
 from utils.spyfish_utils import process_spyfish_subjects
 import utils.db_utils as db_utils
+
+def zoo_credentials():
+    zoo_user = getpass.getpass('Enter your Zooniverse user')
+    zoo_pass = getpass.getpass('Enter your Zooniverse password')
+    
+    return zoo_user, zoo_pass
 
 
 class AuthenticationError(Exception):
