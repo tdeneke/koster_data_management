@@ -3,8 +3,10 @@ import operator, argparse, requests
 import pandas as pd
 import sqlite3
 from datetime import datetime
+from utils.server_utils import get_sites_movies_species
 import utils.db_utils as db_utils
 import utils.koster_utils as koster_utils
+import utils.spyfish_utils as spyfish_utils
 import utils.movie_utils as movie_utils
 
 
@@ -88,7 +90,17 @@ def add_movies(movies_csv, movies_path, project_name, db_path):
 
     # Load the csv with movies information
     movies_df = pd.read_csv(movies_csv)
-
+    
+    #Check that videos have filenames
+    if movies_df["filename"].isna().any():
+        
+        # Check if the project is the Spyfish Aotearoa
+        if project_name == "Spyfish Aotearoa":
+            spyfish_utils.concatenate_go_pro()
+        
+        else:
+            print("There are movies with missing filenames.")
+            
     # Include server's path to the movie files
     movies_df["Fpath"] = movies_path + "/" + movies_df["filename"]
     
@@ -164,12 +176,12 @@ def add_species(species_csv, db_path):
     )
     
 
-def static_setup(sites_csv: str,
-                 movies_csv: str,
-                 species_csv: str,
-                 movies_path: str,
+def static_setup(movies_path: str,
                  project_name: str,
                  db_path: str):   
+    
+    # Get the location of the csv files with initial info to populate the db
+    sites_csv, movies_csv, species_csv = get_sites_movies_species()
     
     add_sites(sites_csv, db_path)
     add_movies(movies_csv, movies_path, project_name, db_path)
