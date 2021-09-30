@@ -189,8 +189,13 @@ def get_classifications(
     # Create connection to db
     conn = db_utils.create_connection(db_path)
     
-    # Query id and subject type from the subjects table
-    subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location, frame_number, movie_id FROM subjects", conn)
+    if subj_type == "frame":
+        # Query id and subject type from the subjects table
+        subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location, frame_number, movie_id FROM subjects", conn)
+        
+    else:
+        # Query id and subject type from the subjects table
+        subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location, clip_start_time, movie_id FROM subjects", conn)
     
     # Add subject information based on subject_ids
     class_df = pd.merge(
@@ -383,19 +388,34 @@ def process_frames(df: pd.DataFrame, project_name):
         for ann_i in annotations:
             if ann_i["task"] == "T0":
 
-                # Select each species annotated and flatten the relevant answers
-                for i in ann_i["value"]:
+                if not ann_i["value"]:
+                    print(row["classification_id"])
+                    # Specify the frame was classified as empty
                     choice_i = {
-                        "classification_id": row["classification_id"],
-                        # If value_i is not empty flatten labels
-                        "x": int(i["x"]) if "x" in i else None,
-                        "y": int(i["y"]) if "y" in i else None,
-                        "w": int(i["width"]) if "width" in i else None,
-                        "h": int(i["height"]) if "height" in i else None,
-                        "label": str(i["tool_label"]) if "tool_label" in i else None,
-                    }
+                            "classification_id": row["classification_id"],
+                            # If value_i is not empty flatten labels
+                            "x": None,
+                            "y": None,
+                            "w": None,
+                            "h": None,
+                            "label": "empty",
+                        }
+                
+                else:
+                    # Select each species annotated and flatten the relevant answers
+                    for i in ann_i["value"]:
+                        choice_i = {
+                            "classification_id": row["classification_id"],
+                            # If value_i is not empty flatten labels
+                            "x": int(i["x"]) if "x" in i else None,
+                            "y": int(i["y"]) if "y" in i else None,
+                            "w": int(i["width"]) if "width" in i else None,
+                            "h": int(i["height"]) if "height" in i else None,
+                            "label": str(i["tool_label"]) if "tool_label" in i else None,
+                        }
+                        
 
-                    rows_list.append(choice_i)
+                rows_list.append(choice_i)
 
     # Create a data frame with annotations as rows
     flat_annot_df = pd.DataFrame(
