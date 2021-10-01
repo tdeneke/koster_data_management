@@ -12,6 +12,7 @@ from IPython.display import HTML, display, update_display, clear_output
 import ipywidgets as widgets
 from ipywidgets import interact
 import asyncio
+from itables import show
 
 
 def choose_project():
@@ -185,6 +186,7 @@ def get_classifications(
         & (class_df.workflow_version >= workflow_version)
     ].reset_index(drop=True)
     
+    
     # Add information about the subject
     # Create connection to db
     conn = db_utils.create_connection(db_path)
@@ -197,6 +199,9 @@ def get_classifications(
         # Query id and subject type from the subjects table
         subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location, clip_start_time, movie_id FROM subjects", conn)
     
+    # Ensure id format matches classification's subject_id
+    subjects_df["id"] = subjects_df["id"].astype('Int64')
+    
     # Add subject information based on subject_ids
     class_df = pd.merge(
         class_df,
@@ -205,59 +210,84 @@ def get_classifications(
         left_on="subject_ids",
         right_on="id",
     )
-
+    
+    if class_df[["subject_type", "https_location","movie_id"]].isna().any().any():
+        # Exclude classifications from missing subjects
+        filtered_class_df = class_df[
+            class_df[["subject_type", "https_location","movie_id"]].notnull()
+        ].reset_index(drop=True)
+        
+        # Report on the issue
+        print("There are", 
+              (class_df.shape[0]-filtered_class_df.shape[0]), 
+              "classifications out of",
+              class_df.shape[0],
+              "missing subject info. Maybe the subjects have been removed from Zooniverse?")
+        
+        class_df = filtered_class_df
+        
+    
     print("Zooniverse classifications have been retrieved")
 
     return class_df
 
 
-def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
-
-    print("Aggregrating the classifications")
-    if subj_type == "frame":
-        agg_users, min_users, agg_obj, agg_iou, agg_iua = [i.value for i in agg_params]
-    else:
-        agg_users, min_users = [i.value for i in agg_params]
-
-    # Process the classifications of clips or frames
-    if subj_type == "clip":
-        raw_class_df = process_clips(df, project_name)
-
-    if subj_type == "frame":
-        raw_class_df = process_frames(df, project_name)
-
+def aggregrate_labels(raw_class_df, agg_users, min_users):
     # Calculate the number of users that classified each subject
     raw_class_df["n_users"] = raw_class_df.groupby("subject_ids")[
         "classification_id"
     ].transform("nunique")
 
     # Select classifications with at least n different user classifications
-    raw_class_df = raw_class_df[raw_class_df.n_users >= min_users]
+    raw_class_df = raw_class_df[raw_class_df.n_users >= min_users].reset_index(drop=True)
 
-    # Calculate the proportion of users that agreed on their annotations
+    # Calculate the proportion of unique classification (it can have multiple annotations) per subject
     raw_class_df["class_n"] = raw_class_df.groupby(["subject_ids", "label"])[
         "classification_id"
     ].transform("count")
+    
+    # Calculate the proportion of users that agreed on their annotations
     raw_class_df["class_prop"] = raw_class_df.class_n / raw_class_df.n_users
-
+    
     # Select annotations based on agreement threshold
-    agg_class_df = raw_class_df[raw_class_df.class_prop >= agg_users]
+    agg_class_df = raw_class_df[raw_class_df.class_prop >= agg_users].reset_index(drop=True)
+    
+    return agg_class_df
+    
 
-    # Aggregate information unique to clips and frames
-    if subj_type == "clip":
-        # Extract the median of the second where the animal/object is and number of animals
-        agg_class_df = agg_class_df.groupby(["subject_ids", "https_location", "subject_type", "label"], as_index=False)
-        agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
+def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
 
+    print("Aggregrating the classifications")
     if subj_type == "frame":
+        # Get the aggregration parameters
+        agg_users, min_users, agg_obj, agg_iou, agg_iua = [i.value for i in agg_params]
         
+        # Process the raw classifications
+        raw_class_df = process_frames(df, project_name)
+        
+        # Aggregrate frames based on their labels
+        agg_labels_df = aggregrate_labels(raw_class_df, agg_users, min_users)
+        
+        # Select frames aggregrated as empty
+        agg_labels_df_empty = agg_labels_df[agg_labels_df["label"]=="empty"]
+        agg_labels_df_empty = agg_labels_df_empty.rename(columns={'frame_number': 'start_frame'})
+        agg_labels_df_empty = agg_labels_df_empty[[
+                "movie_id",
+                "label",
+                "start_frame",
+                "subject_ids",
+                "x",
+                "y",
+                "w",
+                "h",
+            ]]
         ############################ To update from here #######
         
-        # Get prepared annotations
-        agg_annot_df = agg_class_df[agg_class_df["x"].notnull()]
-        new_rows = []
-        col_list = list(agg_annot_df.columns)
-
+        # Exclude empty frames
+        agg_labels_df = raw_class_df[raw_class_df["x"].notnull()]
+        
+        # Map the posstion of the annotation parameters
+        col_list = list(agg_labels_df.columns)
         x_pos, y_pos, w_pos, h_pos, user_pos, subject_id_pos = (
             col_list.index("x"),
             col_list.index("y"),
@@ -267,15 +297,18 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
             col_list.index("subject_ids"),
         )
 
-        for name, group in agg_annot_df.groupby(["movie_id", "label", "frame_number"]):
+        # Get prepared annotations
+        new_rows = []
+        
+        for name, group in agg_labels_df.groupby(["movie_id", "label", "frame_number"]):
             movie_id, label, start_frame = name
 
-            total_users = agg_class_df[
-                (agg_class_df.movie_id == movie_id)
-                & (agg_class_df.label == label)
-                & (agg_class_df.frame_number == start_frame)
+            total_users = agg_labels_df[
+                (agg_labels_df.movie_id == movie_id)
+                & (agg_labels_df.label == label)
+                & (agg_labels_df.frame_number == start_frame)
             ]["user_name"].nunique()
-
+            
             # Filter bboxes using IOU metric (essentially a consensus metric)
             # Keep only bboxes where mean overlap exceeds this threshold
             indices, new_group = filter_bboxes(
@@ -309,18 +342,50 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
                 "movie_id",
                 "label",
                 "start_frame",
-                "subject_id",
+                "subject_ids",
                 "x",
                 "y",
                 "w",
                 "h",
             ],
         )
+        
+        # Add the empty frames
+        agg_class_df = pd.concat([agg_class_df,agg_labels_df_empty])
+        
+        # Add the http info
+        agg_class_df =  pd.merge(
+        agg_class_df,
+        agg_labels_df[["subject_ids","https_location"]],
+        how="left",
+        on="subject_ids"
+    )
+  
+    else:
+        # Get the aggregration parameters
+        agg_users, min_users = [i.value for i in agg_params]
+        
+        # Process the raw classifications
+        raw_class_df = process_clips(df, project_name)
+        
+        # Aggregrate clips based on their labels
+        agg_class_df = aggregrate_labels(raw_class_df, agg_users, min_users)
+        
+        # Extract the median of the second where the animal/object is and number of animals
+        agg_class_df = agg_class_df.groupby(["subject_ids", "https_location", "subject_type", "label"], as_index=False)
+        agg_class_df = pd.DataFrame(agg_class_df[["how_many", "first_seen"]].median())
 
+    # Add username info to raw class
+    raw_class_df = pd.merge(
+        raw_class_df,
+        df[["classification_id","user_name"]],
+        how="left",
+        on="classification_id"
+    )
     
     print(agg_class_df.shape[0], "classifications aggregated out of", df.subject_ids.nunique(), "unique subjects available")
     
-    return agg_class_df
+    return agg_class_df, raw_class_df
 
 
 def process_clips(df: pd.DataFrame, project_name):
@@ -389,7 +454,6 @@ def process_frames(df: pd.DataFrame, project_name):
             if ann_i["task"] == "T0":
 
                 if not ann_i["value"]:
-                    print(row["classification_id"])
                     # Specify the frame was classified as empty
                     choice_i = {
                             "classification_id": row["classification_id"],
@@ -490,7 +554,7 @@ def launch_viewer(class_df: pd.DataFrame):
 
     # Select the subject
     subject_widget = widgets.Combobox(
-                    options= tuple(class_df.subject_ids.apply(int).apply(str)),
+                    options= tuple(class_df.subject_ids.apply(int).apply(str).unique()),
                     description="Subject id:",
                     ensure_option=True,
                     disabled=False,
@@ -508,4 +572,36 @@ def launch_viewer(class_df: pd.DataFrame):
                 
                 
     subject_widget.observe(on_change, names='value')
-            
+
+    
+def explore_classifications_per_subject(class_df: pd.DataFrame, subject_type):
+
+    # Select the subject
+    subject_widget = widgets.Combobox(
+                    options= tuple(class_df.subject_ids.apply(int).apply(str).unique()),
+                    description="Subject id:",
+                    ensure_option=True,
+                    disabled=False,
+                )
+    
+    main_out = widgets.Output()
+    display(subject_widget, main_out)
+    
+    # Display the subject and classifications on change
+    def on_change(change):
+        with main_out:
+            a = class_df[class_df.subject_ids==int(change["new"])]
+            if subject_type == "clip":
+                a = a[['classification_id', 'user_name', 'label', 'how_many', 'first_seen']]
+            else:
+                a = a[["x", "y", "w", "h", 
+            "label",
+            "https_location",
+            "subject_ids",
+            "frame_number",
+            "movie_id"]]
+            clear_output()
+            show(a)
+                
+                
+    subject_widget.observe(on_change, names='value')
