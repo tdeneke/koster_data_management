@@ -3,89 +3,22 @@ import sqlite3
 import pandas as pd
 
 import utils.db_utils as db_utils
+import utils.server_utils as server_utils
 
-    
-def process_spyfish_subjects(subjects, db_path):
-    
-    # Merge "#Subject_type" and "Subject_type" columns to "subject_type"
-    subjects['subject_type'] = subjects['Subject_type'].fillna(subjects['#Subject_type'])
-    
-    # Rename columns to match the db format
-    subjects = subjects.rename(
-        columns={
-            "#VideoFilename": "filename",
-            "upl_seconds": "clip_start_time",
-            "#frame_number": "frame_number"
-        }
-    )
-    
-    # Calculate the clip_end_time
-    subjects["clip_end_time"] = subjects["clip_start_time"] + subjects["#clip_length"] 
-    
-    # Create connection to db
-    conn = db_utils.create_connection(db_path)
-    
-    ##### Match 'ScientificName' to species id and save as column "frame_exp_sp_id" 
-    # Query id and sci. names from the species table
-    species_df = pd.read_sql_query("SELECT id, scientificName FROM species", conn)
-    
-    # Rename columns to match subject df 
-    species_df = species_df.rename(
-        columns={
-            "id": "frame_exp_sp_id",
-            "scientificName": "ScientificName"
-        }
-    )
-    
-    # Reference the expected species on the uploaded subjects
-    subjects = pd.merge(subjects, species_df, how="left", on="ScientificName")
+def add_movie_filenames(movies_df):
 
-    ##### Match site code to name from movies sql and get movie_id to save it as "movie_id"
-    # Query id and filenames from the movies table
-    movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
-    
-    # Rename columns to match subject df 
-    movies_df = movies_df.rename(
-        columns={
-            "id": "movie_id"
-        }
-    )
-    
-    # Reference the movienames with the id movies table
-    subjects = pd.merge(subjects, movies_df, how="left", on="filename")
-    
-    return subjects
-
-def connect_spyfish_server():
-
-    ####Get info from csv####
-    # Define the path to the csv files with initial info to build the db
-    db_csv_info = "../db_starter/db_csv_info/"
-    
-    # Define the path to the csv files with inital info to build the db
-    for file in Path(db_csv_info).rglob("*.csv"):
-        if 'movies' in file.name:
-            movies_csv = file
-            
-    # Load the csv with movies information
-    movies_df = pd.read_csv(movies_csv)
-
-    
     #####Get info from bucket#####
+    # Your acess key for the s3 bucket. 
+    aws_access_key_id, aws_secret_access_key = server_utils.aws_credentials
+    
+    # Specify the bucket where the BUV files are
+    bucket_i = movies_df['bucket'].str.split('/').str[0].unique().str[0]
+    
+    # Retrieve info from the bucket
+    contents_s3_pd = server_utils.retrieve_s3_buckets_info(aws_access_key_id,aws_secret_access_key, bucket_i)
+
     # Include server's path to the movie files
     movies_df["Fpath"] = movies_path["bucket"] + "/" + movies_df["filename"]
-    
-    # Your acess key for the s3 bucket. 
-    aws_access_key_id = getpass.getpass('Enter the key id for the aws server')
-    aws_secret_access_key = getpass.getpass('Enter the secret access key for the aws server')
-
-    # Connect to the s3 bucket
-    client = boto3.client('s3',
-                          aws_access_key_id = aws_access_key_id, 
-                          aws_secret_access_key = aws_secret_access_key)
-
-    # Specify the bucket where the BUV files are
-    movies_df['bucket_i'] = movies_df['bucket'].str.split('/').str[0]
 
     # Specify the 'key' or path to the BUV directories
     movies_df['key'] = movies_df['bucket'].str.split('/',1).str[1]
@@ -114,8 +47,12 @@ def connect_spyfish_server():
     
     #movies_to_upload = apply(concatenate_go_pro x["VideoFilename","go_pro_files"])
 
-def concatenate_go_pro():
+def concatenate_go_pro(list_go_pro):
     
+    if not list_go_pro:
+        #retreive the list of go pro files to concatenate
+        list_go_pro
+        
     # Specify the path for the concatenated videos
     movies_to_upload["concat_video"] = concat_folder + "/" + movies_to_upload['VideoFilename'] + ".MP4"
 
@@ -179,6 +116,57 @@ def concatenate_go_pro():
       os.remove(textfile_name)
 
       print("Temporary files and videos removed")
+    
+def process_spyfish_subjects(subjects, db_path):
+    
+    # Merge "#Subject_type" and "Subject_type" columns to "subject_type"
+    subjects['subject_type'] = subjects['Subject_type'].fillna(subjects['#Subject_type'])
+    
+    # Rename columns to match the db format
+    subjects = subjects.rename(
+        columns={
+            "#VideoFilename": "filename",
+            "upl_seconds": "clip_start_time",
+            "#frame_number": "frame_number"
+        }
+    )
+    
+    # Calculate the clip_end_time
+    subjects["clip_end_time"] = subjects["clip_start_time"] + subjects["#clip_length"] 
+    
+    # Create connection to db
+    conn = db_utils.create_connection(db_path)
+    
+    ##### Match 'ScientificName' to species id and save as column "frame_exp_sp_id" 
+    # Query id and sci. names from the species table
+    species_df = pd.read_sql_query("SELECT id, scientificName FROM species", conn)
+    
+    # Rename columns to match subject df 
+    species_df = species_df.rename(
+        columns={
+            "id": "frame_exp_sp_id",
+            "scientificName": "ScientificName"
+        }
+    )
+    
+    # Reference the expected species on the uploaded subjects
+    subjects = pd.merge(subjects, species_df, how="left", on="ScientificName")
+
+    ##### Match site code to name from movies sql and get movie_id to save it as "movie_id"
+    # Query id and filenames from the movies table
+    movies_df = pd.read_sql_query("SELECT id, filename FROM movies", conn)
+    
+    # Rename columns to match subject df 
+    movies_df = movies_df.rename(
+        columns={
+            "id": "movie_id"
+        }
+    )
+    
+    # Reference the movienames with the id movies table
+    subjects = pd.merge(subjects, movies_df, how="left", on="filename")
+    
+    return subjects
 
         
 def process_clips_spyfish(annotations, row_class_id, rows_list):
