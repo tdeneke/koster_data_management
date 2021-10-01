@@ -3,6 +3,7 @@ import io
 import getpass
 import pandas as pd
 import json
+import numpy as np
 from panoptes_client import (
     SubjectSet,
     Subject,
@@ -84,6 +85,10 @@ def retrieve_zoo_info(username: str, password: str, project_name: str, zoo_info:
         except:
             raise ValueError("Request time out, please try again in 1 minute.")
 
+        # Ensure subject_ids match db format
+        if info_n == "classifications":
+            export_df["subject_ids"] = export_df["subject_ids"].astype(np.int64)
+                    
         # Add df to dictionary
         info_df[info_n] = export_df
         
