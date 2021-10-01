@@ -93,10 +93,10 @@ def add_movies(movies_csv, movies_path, project_name, db_path):
     
     #Check that videos have filenames
     if movies_df["filename"].isna().any():
-        
+             
         # Check if the project is the Spyfish Aotearoa
         if project_name == "Spyfish Aotearoa":
-            spyfish_utils.concatenate_go_pro()
+            movies_df = spyfish_utils.add_movie_filenames(movies_df)
         
         else:
             print("There are movies with missing filenames.")
