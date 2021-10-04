@@ -281,12 +281,11 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
                 "w",
                 "h",
             ]]
-        ############################ To update from here #######
         
         # Exclude empty frames
-        agg_labels_df = raw_class_df[raw_class_df["x"].notnull()]
+        agg_labels_df = agg_labels_df[agg_labels_df["label"]!="empty"]
         
-        # Map the posstion of the annotation parameters
+        # Map the position of the annotation parameters
         col_list = list(agg_labels_df.columns)
         x_pos, y_pos, w_pos, h_pos, user_pos, subject_id_pos = (
             col_list.index("x"),
@@ -349,6 +348,8 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
                 "h",
             ],
         )
+
+        agg_class_df["subject_type"] = "frame"
         
         # Add the empty frames
         agg_class_df = pd.concat([agg_class_df,agg_labels_df_empty])
@@ -514,7 +515,7 @@ def process_frames(df: pd.DataFrame, project_name):
     return pd.DataFrame(annot_df)
 
 
-def view_subject(subject_id: int,  class_df: pd.DataFrame):
+def view_subject(subject_id: int,  class_df: pd.DataFrame, subject_type: str):
     try:
 
         subject_location = class_df[class_df.subject_ids == subject_id]["https_location"].unique()[0]
@@ -524,7 +525,7 @@ def view_subject(subject_id: int,  class_df: pd.DataFrame):
         raise Exception("Subject not found in provided annotations")
 
     # Get the HTML code to show the selected subject
-    if ".mp4" in subject_location:
+    if subject_type == "clip":
         html_code = f"""
         <html>
         <div style="display: flex; justify-content: space-around">
@@ -536,7 +537,7 @@ def view_subject(subject_id: int,  class_df: pd.DataFrame):
         <div>{class_df[class_df.subject_ids == subject_id][['label','first_seen','how_many']].value_counts().sort_values(ascending=False).to_frame().to_html()}</div>
         </div>
         </html>"""
-    else:
+    elif subject_type == "frame":
         html_code = f"""
         <html>
         <div style="display: flex; justify-content: space-around">
@@ -547,14 +548,17 @@ def view_subject(subject_id: int,  class_df: pd.DataFrame):
         <div>{class_df[class_df.subject_ids == subject_id]['label'].value_counts().sort_values(ascending=False).to_frame().to_html()}</div>
         </div>
         </html>"""
+    else:
+        Exception("Subject type not supported.")
     return HTML(html_code)
 
 
-def launch_viewer(class_df: pd.DataFrame):
+def launch_viewer(class_df: pd.DataFrame, subject_type: str):
 
     # Select the subject
+    options = tuple(class_df[class_df["subject_type"] == subject_type]["subject_ids"].apply(int).apply(str).unique())
     subject_widget = widgets.Combobox(
-                    options= tuple(class_df.subject_ids.apply(int).apply(str).unique()),
+                    options=options,
                     description="Subject id:",
                     ensure_option=True,
                     disabled=False,
@@ -566,7 +570,7 @@ def launch_viewer(class_df: pd.DataFrame):
     # Display the subject and classifications on change
     def on_change(change):
         with main_out:
-            a = view_subject(int(change["new"]), class_df)
+            a = view_subject(int(change["new"]), class_df, subject_type)
             clear_output()
             display(a)
                 
