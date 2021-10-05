@@ -200,7 +200,9 @@ def get_classifications(
         subjects_df = pd.read_sql_query("SELECT id, subject_type, https_location, clip_start_time, movie_id FROM subjects", conn)
     
     # Ensure id format matches classification's subject_id
+    class_df["subject_ids"] = class_df["subject_ids"].astype('Int64')
     subjects_df["id"] = subjects_df["id"].astype('Int64')
+    
     
     # Add subject information based on subject_ids
     class_df = pd.merge(
@@ -213,9 +215,10 @@ def get_classifications(
     
     if class_df[["subject_type", "https_location","movie_id"]].isna().any().any():
         # Exclude classifications from missing subjects
-        filtered_class_df = class_df[
-            class_df[["subject_type", "https_location","movie_id"]].notnull()
-        ].reset_index(drop=True)
+        filtered_class_df = class_df.dropna(subset=["subject_type",
+                                                    "https_location",
+                                                    "movie_id"], 
+                                            how='any').reset_index(drop=True)
         
         # Report on the issue
         print("There are", 
@@ -272,9 +275,7 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
         agg_labels_df_empty = agg_labels_df[agg_labels_df["label"]=="empty"]
         agg_labels_df_empty = agg_labels_df_empty.rename(columns={'frame_number': 'start_frame'})
         agg_labels_df_empty = agg_labels_df_empty[[
-                "movie_id",
                 "label",
-                "start_frame",
                 "subject_ids",
                 "x",
                 "y",
@@ -354,10 +355,13 @@ def aggregrate_classifications(df, subj_type, project_name: str, agg_params):
         # Add the empty frames
         agg_class_df = pd.concat([agg_class_df,agg_labels_df_empty])
         
+        # Select the aggregated labels
+        agg_class_df = agg_class_df[["subject_ids", "label", "x", "y", "w", "h"]].drop_duplicates()
+        
         # Add the http info
         agg_class_df =  pd.merge(
         agg_class_df,
-        agg_labels_df[["subject_ids","https_location"]],
+        raw_class_df[["subject_ids","https_location","subject_type", "movie_id"]].drop_duplicates(),
         how="left",
         on="subject_ids"
     )
