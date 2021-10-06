@@ -1,7 +1,7 @@
 # Koster Object Detection - Koster Lab Database
 # author: Jannes Germishuys
 
-FROM python:3.6-slim
+FROM python:3.8-slim
 
 RUN pip install --no-cache-dir notebook
 
