@@ -91,15 +91,9 @@ def add_movies(movies_csv, movies_path, project_name, db_path):
     # Load the csv with movies information
     movies_df = pd.read_csv(movies_csv)
     
-    #Check that videos have filenames
-    if movies_df["filename"].isna().any():
-             
-        # Check if the project is the Spyfish Aotearoa
-        if project_name == "Spyfish Aotearoa":
-            movies_df = spyfish_utils.add_movie_filenames(movies_df)
-        
-        else:
-            print("There are movies with missing filenames.")
+    # Check if the project is the Spyfish Aotearoa
+    if project_name == "Spyfish Aotearoa":
+        movies_df = process_movies_csv(movies_df)
             
     # Include server's path to the movie files
     movies_df["Fpath"] = movies_path + "/" + movies_df["filename"]
