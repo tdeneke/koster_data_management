@@ -7,8 +7,8 @@ import gdown
 import zipfile
 import boto3
 
+from tqdm import tqdm
 from pathlib import Path
-
 
 # Common utility functions to connect to external servers (AWS, GDrive,...)
 
@@ -85,12 +85,15 @@ def aws_credentials():
     return aws_access_key_id,aws_secret_access_key
 
 
-def retrieve_s3_buckets_info(aws_access_key_id,aws_secret_access_key, bucket_i):
-
+def connect_s3(aws_access_key_id, aws_secret_access_key):
     # Connect to the s3 bucket
     client = boto3.client('s3',
                           aws_access_key_id = aws_access_key_id, 
                           aws_secret_access_key = aws_secret_access_key)
+    return client
+
+
+def retrieve_s3_buckets_info(client, bucket_i):
 
     # Select the relevant bucket
     objs = client.list_objects(Bucket=bucket_i)
@@ -101,4 +104,47 @@ def retrieve_s3_buckets_info(aws_access_key_id,aws_secret_access_key, bucket_i):
     return contents_s3_pd
 
 
+def download_object_from_s3(client, *, bucket, key, version_id=None, filename):
+    """
+    Download an object from S3 with a progress bar.
 
+    From https://alexwlchan.net/2021/04/s3-progress-bars/
+    """
+
+    # First get the size, so we know what tqdm is counting up to.
+    # Theoretically the size could change between this HeadObject and starting
+    # to download the file, but this would only affect the progress bar.
+    kwargs = {"Bucket": bucket, "Key": key}
+
+    if version_id is not None:
+        kwargs["VersionId"] = version_id
+
+    object_size = client.head_object(**kwargs)["ContentLength"]
+
+    if version_id is not None:
+        ExtraArgs = {"VersionId": version_id}
+    else:
+        ExtraArgs = None
+
+    with tqdm(total=object_size, unit="B", unit_scale=True, desc=filename, position=0, leave=True) as pbar:
+        client.download_file(
+            Bucket=bucket,
+            Key=key,
+            ExtraArgs=ExtraArgs,
+            Filename=filename,
+            Callback=lambda bytes_transferred: pbar.update(bytes_transferred),
+        )
+
+
+def upload_file_to_s3(client, *, bucket, key, filename):
+    
+    # Get the size of the file to upload
+    file_size = os.stat(filename).st_size
+
+    with tqdm(total=file_size, unit="B", unit_scale=True, desc=filename, position=0, leave=True) as pbar:
+        client.upload_file(
+            Filename=filename,
+            Bucket=bucket,
+            Key=key,
+            Callback=lambda bytes_transferred: pbar.update(bytes_transferred),
+        )
